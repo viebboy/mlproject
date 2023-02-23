@@ -1,0 +1,13 @@
+# get cvinfer from here: https://github.com/viebboy/cvinfer
+cvinfer
+# get dataset_server from here: https://github.com/viebboy/dataset_server
+dataset_server
+# others
+loguru
+tabulate
+numpy
+dill
+plotly
+tqdm
+torch
+pandas

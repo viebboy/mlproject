@@ -1,0 +1,28 @@
+{
+  "COMPANY": "Dat Tran",
+  "AUTHORS": [
+    {
+      "name": "Dat Tran",
+      "emails": [
+        "viebboy@gmail.com"
+      ]
+    }
+  ],
+  "DISABLE_WARNING": false,
+  "NB_PARALLEL_JOBS": -1,
+  "LOG_LEVEL": "INFO",
+  "LICENSES": {
+    "MIT": {
+      "title": "MIT License",
+      "path": "licenses/MIT.txt"
+    },
+    "proprietary": {
+      "title": "Proprietary License",
+      "path": "licenses/Proprietary.txt"
+    },
+    "apache": {
+      "title": "Apache 2.0 License",
+      "path": "licenses/Apache2.0.txt"
+    }
+  }
+}
