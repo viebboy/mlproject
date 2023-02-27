@@ -50,10 +50,10 @@ def parse_args():
         action='store',
         type=str,
         default=None,
-        help=(
+        help=''.join([
             "name and emails of authors. Format: name1,email1;name2,email2 and so on",
             'For example: --authors "First Name Last Name,email1@gmail.com; First Name Last Name,email2@gmail.com"'
-        )
+        ])
     )
     parser.add_argument(
         "--disable-warning",
