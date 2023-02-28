@@ -10,4 +10,6 @@ dill
 plotly
 tqdm
 torch
+torchvision
+thop
 pandas
