@@ -369,8 +369,8 @@ def get_trainer(config_file: str, config: dict, config_name: str, config_index: 
         log_dir=log_dir, # use directory created above for this configuration
         checkpoint_freq=config['checkpoint_freq'],
         max_checkpoint=config['max_checkpoint'],
-        eval_freq=config['eval_preq'],
-        print_freq=config['print_preq'],
+        eval_freq=config['eval_freq'],
+        print_freq=config['print_freq'],
         use_progress_bar=config['use_progress_bar'],
         test_mode=config['test_mode'],
         move_data_to_device=config['move_data_to_device'],
