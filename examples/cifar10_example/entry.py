@@ -36,7 +36,7 @@ def parse_args():
     # these are used to versioned default configs
     parser.add_argument(
         "--config-path",
-        default='./config.py',
+        default='./configs/config.py',
         type=str,
         help="path to config file, should be a valid .py file. Default to config.py in the same source code"
     )

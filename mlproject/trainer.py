@@ -367,41 +367,25 @@ class Trainer:
         )
 
         for metric in metric_names:
-            plot_metrics = {}
+            plot_metrics = {'name': [], 'epoch': [], 'metric_value': []}
+            x_ticks = self.history_indices
+            nb_x_points = len(x_ticks)
 
-            if 'train_' + metric in performance:
-                nb_x_points = len(performance['train_' + metric])
-                x_ticks = np.linspace(self.n_epoch/nb_x_points, self.n_epoch, nb_x_points)
+            # train curve
+            for idx in range(nb_x_points):
+                plot_metrics['name'].append('train_' + metric)
+                plot_metrics['epoch'].append(x_ticks[idx])
+                plot_metrics['metric_value'].append(performance['train_' + metric][idx])
 
-                for idx in range(nb_x_points):
-                    if 'name' not in plot_metrics:
-                        plot_metrics['name'] = ['train_' + metric]
-                    else:
-                        plot_metrics['name'].append('train_' + metric)
-
-                    if 'epoch' not in plot_metrics:
-                        plot_metrics['epoch'] = [x_ticks[idx]]
-                    else:
-                        plot_metrics['epoch'].append(x_ticks[idx])
-
-                    if 'metric_value' not in plot_metrics:
-                        plot_metrics['metric_value'] = [performance['train_' + metric][idx]]
-                    else:
-                        plot_metrics['metric_value'].append(performance['train_' + metric][idx])
-
+            # val curve
             if 'val_' + metric in performance:
-                nb_x_points = len(performance['val_' + metric])
-                x_ticks = np.linspace(self.n_epoch/nb_x_points, self.n_epoch, nb_x_points)
-
                 for idx in range(nb_x_points):
                     plot_metrics['name'].append('val_' + metric)
                     plot_metrics['epoch'].append(x_ticks[idx])
                     plot_metrics['metric_value'].append(performance['val_' + metric][idx])
 
+            # test curve
             if 'test_' + metric in performance:
-                nb_x_points = len(performance['test_' + metric])
-                x_ticks = np.linspace(self.n_epoch/nb_x_points, self.n_epoch, nb_x_points)
-
                 for idx in range(nb_x_points):
                     plot_metrics['name'].append('test_' + metric)
                     plot_metrics['epoch'].append(x_ticks[idx])
@@ -674,6 +658,7 @@ class Trainer:
             'accumulated_loss_counter': self.accumulated_loss_counter,
             'accumulated_loss': self.accumulated_loss,
             'epoch_ended': epoch_ended,
+            'history_indices': self.history_indices,
         }
 
         checkpoint_file = os.path.join(
@@ -771,6 +756,9 @@ class Trainer:
 
 
     def update_metrics(self, train_metrics: dict, val_metrics: dict, test_metrics: dict):
+        # update indices
+        self.history_indices.append(self.epoch_idx)
+
         # add new values to the history list
         prefixes = ['train_', 'val_', 'test_']
         values = [train_metrics, val_metrics, test_metrics]
@@ -864,6 +852,7 @@ class Trainer:
         if checkpoint is None:
             self.epoch_idx = 0
             self.history = {}
+            self.history_indices = []
             self.loss_curve = open(os.path.join(self.output_dir, 'loss_curve.txt'), 'w')
             self.accumulated_loss_counter = 0
             self.accumulated_loss = 0
@@ -880,6 +869,7 @@ class Trainer:
             self.history = checkpoint['history']
             self.accumulated_loss_counter = checkpoint['accumulated_loss_counter']
             self.accumulated_loss = checkpoint['accumulated_loss']
+            self.history_indices = checkpoint['history_indices']
 
             if checkpoint['epoch_ended']:
                 self.epoch_idx += 1

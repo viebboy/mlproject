@@ -37,7 +37,7 @@ def parse_args():
     # these are used to versioned default configs
     parser.add_argument(
         "--config-path",
-        default='./config.py',
+        default='./configs/config.py',
         type=str,
         help="path to config file, should be a valid .py file. Default to config.py in the same source code"
     )
@@ -60,7 +60,6 @@ def parse_args():
 
     # process args
     args = parser.parse_args()
-    args.gpu_indices = [int(v) for v in args.gpu_indices.split(',')]
     if args.test_mode in ['True', 'true']:
         args.test_mode = True
     else:
