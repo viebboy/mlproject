@@ -1,15 +1,18 @@
 # cifar10 example
 
-Description goes here
+This is an example using mlproject to create experiments for CIFAR dataset.
 
 ## Installation
 
-Instruction for installing dependencies goes here
-
+Install dependencies in `requirements.txt` 
 
 ## Usage
 
-Describe how to run the project here
+Simply run: `python entry.py --index 0 --config-path ./configs/config.py`. 
+
+To run on cpu, set the flag `--device cpu`.
+
+To quickly run in test mode, set the flag `--test-mode True`
 
 ## Authors
 

@@ -46,7 +46,10 @@ MODEL2_CONFIG = {}
 # mlproject new-project
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'outputs')
-LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'logs')
+
+
+CACHE_SETTING = None # define your cache setting here if using async data loader
+ROTATION_SETTING = None # define your rotation setting here if using async data loader
 
 
 """
@@ -70,7 +73,6 @@ ALL_CONFIGS = {
     # output dir to save final results and log dir to save intermediate checkpoints
     'data_dir': ConfigValue(DATA_DIR), # this is the output dir that contains results from all exps
     'output_dir': ConfigValue(OUTPUT_DIR), # this is the output dir that contains results from all exps
-    'log_dir': ConfigValue(LOG_DIR), # this is the log dir that contains results from all exps
     # ----------------------------------------
     # common config for data
     'nb_shard': ConfigValue(32), # sharding is used in mlproject.data.BinaryBlob
@@ -117,20 +119,20 @@ ALL_CONFIGS = {
     # for dataset_server description, take a look at
     # https://github.com/viebboy/dataset_server
     # --------------------------------------------
-    'use_dataset_server': ConfigValue(True), # whether to use dataset_server or Torch's dataloader
-    'packet_size': ConfigValue(1_000_000), # size of a byte chunk to sent by co-routines
+    'use_async_loader': ConfigValue(True), # whether to use dataset_server or Torch's dataloader
     # options for train data
-    'train_nb_server': ConfigValue(1),
-    'train_start_port': ConfigValue(11111),
+    'train_nb_worker': ConfigValue(1),
     'train_max_queue_size': ConfigValue(100),
     # options for val data
-    'val_nb_server': ConfigValue(1),
-    'val_start_port': ConfigValue(22222),
+    'val_nb_worker': ConfigValue(1),
     'val_max_queue_size': ConfigValue(100),
     # options for test data
-    'test_nb_server': ConfigValue(1),
-    'test_start_port': ConfigValue(33333),
+    'test_nb_worker': ConfigValue(1),
     'test_max_queue_size': ConfigValue(100),
+    'cache_setting': ConfigValue(CACHE_SETTING),
+    'rotation_setting': ConfigValue(ROTATION_SETTING),
+    'nearby_shuffle': ConfigValue(100), # nearby shuffling within 100 samples
+    'use_threading_in_data_loader': ConfigValue(False), # whether to use another thread to communicate with other proc
 }
 
 

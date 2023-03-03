@@ -104,7 +104,7 @@ def main(
     print_config(config_name, config_description, config)
 
     # -------- DATA ---------------------------------------
-    if not config['use_dataset_server']:
+    if not config['use_async_loader']:
         train_loader = get_loader(config, 'train')
         val_loader = get_loader(config, 'val')
         test_loader = get_loader(config, 'test')

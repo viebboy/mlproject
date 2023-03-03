@@ -41,7 +41,9 @@ LIST CONFIG OPTIONS
 # related directories
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'outputs')
-LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'logs')
+
+CACHE_SETTING = None
+ROTATION_SETTING = None
 
 #For example, we want to experiment with 2 types of model architecture
 # model1: with global averaging
@@ -96,7 +98,6 @@ ALL_CONFIGS = {
     # output dir to save final results and log dir to save intermediate checkpoints
     'data_dir': ConfigValue(DATA_DIR), # this is the data dir that contains cifar10 data (will be downloaded)
     'output_dir': ConfigValue(OUTPUT_DIR), # this is the output dir that contains results from all exps
-    'log_dir': ConfigValue(LOG_DIR), # this is the log dir that contains results from all exps
     #
     # common config for data
     'nb_shard': ConfigValue(8),
@@ -140,15 +141,20 @@ ALL_CONFIGS = {
     'retain_metric_objects': ConfigValue(True), # if False, save only the metric values (not obj) in history
     # --------- dataset server config ------------
     # --------------------------------------------
-    'use_dataset_server': ConfigValue(True),
-    'packet_size': ConfigValue(1_000_000), # minimum size (bytes) of the packet sent by a coroutine
-    'train_nb_server': ConfigValue(1),
-    'train_start_port': ConfigValue(11111),
-    'train_max_queue_size': ConfigValue(20),
-    'test_nb_server': ConfigValue(1),
-    'test_start_port': ConfigValue(22222),
-    'test_max_queue_size': ConfigValue(20),
-    'prefetch_time': ConfigValue(5), # time that client in asyncdataloader wait for the server to prefetch data
+    'use_async_loader': ConfigValue(True), # whether to use dataset_server or Torch's dataloader
+    # options for train data
+    'train_nb_worker': ConfigValue(1),
+    'train_max_queue_size': ConfigValue(100),
+    # options for val data
+    'val_nb_worker': ConfigValue(1),
+    'val_max_queue_size': ConfigValue(100),
+    # options for test data
+    'test_nb_worker': ConfigValue(1),
+    'test_max_queue_size': ConfigValue(100),
+    'cache_setting': ConfigValue(CACHE_SETTING),
+    'rotation_setting': ConfigValue(ROTATION_SETTING),
+    'nearby_shuffle': ConfigValue(100), # nearby shuffling within 100 samples
+    'use_threading_in_data_loader': ConfigValue(False), # whether to use another thread to communicate with other proc
 }
 
 

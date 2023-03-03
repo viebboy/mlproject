@@ -63,13 +63,11 @@ def get_trainer(config_file: str, config: dict, config_name: str, config_index: 
     if not os.path.exists(config['output_dir']):
         os.mkdir(config['output_dir'])
 
-    if not os.path.exists(config['log_dir']):
-        os.mkdir(config['log_dir'])
-
     # need to create subdir as output dir and log dir for this particular exp
     config_name = config_name.replace(' ', '_')
     output_dir = os.path.join(config['output_dir'], config_name, '{:09d}'.format(config_index))
-    log_dir = os.path.join(config['log_dir'], config_name, '{:09d}'.format(config_index))
+    log_dir = os.path.join(output_dir, 'checkpoints')
+
     if not os.path.exists(output_dir):
         os.makedirs(output_dir, exist_ok=True)
     if not os.path.exists(log_dir):

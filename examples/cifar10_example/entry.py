@@ -42,13 +42,6 @@ def parse_args():
     )
 
     parser.add_argument(
-        "--gpu-indices",
-        default='0',
-        type=str,
-        help="gpu indices. Comma separated"
-    )
-
-    parser.add_argument(
         "--device",
         default='cuda',
         choices=['cpu', 'cuda'],
@@ -66,7 +59,6 @@ def parse_args():
 
     # process args
     args = parser.parse_args()
-    args.gpu_indices = [int(v) for v in args.gpu_indices.split(',')]
     if args.test_mode in ['True', 'true']:
         args.test_mode = True
     else:
@@ -110,7 +102,7 @@ def main(
     print_config(config_name, config_description, config)
 
     # -------------- DATA -----------------------------------
-    if not config['use_dataset_server']:
+    if not config['use_async_loader']:
         train_loader = get_data_loader(config, 'train')
         val_loader = None
         test_loader = get_data_loader(config, 'test')
@@ -149,7 +141,7 @@ if __name__ == '__main__':
     # load config file
     config_values, config_name, config_description = load_config(args.config_path, args.index, args.test_mode)
     if args.device == 'cuda':
-        device = torch.device('cuda', args.gpu_indices[0])
+        device = torch.device('cuda')
     else:
         device = torch.device('cpu')
 

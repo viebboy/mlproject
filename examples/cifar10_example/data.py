@@ -41,7 +41,7 @@ from mlproject.data import (
     CacheDataset,
     ConcatDataset,
 )
-from dataset_server import AsyncDataLoader
+from dataset_server import DataLoader
 
 
 class Dataset(CIFAR10):
@@ -71,7 +71,7 @@ def dispose_data_loader(*args):
     closing async loader
     """
     for item in args:
-        if item is not None and isinstance(item, AsyncDataLoader):
+        if item is not None and isinstance(item, DataLoader):
             item.close()
 
 
@@ -94,7 +94,7 @@ def get_async_data_loader(config: dict, prefix: str):
         config (dict): a dictionary that contains all configuration needed to construct the dataloader
         prefix (str): a string that indicates the type of dataset (train/validation/test)
     Returns:
-        mlproject.data.AsyncDataLoader object
+        mlproject.data.DataLoader object
     """
 
     # because our Dataset class receives 2 inputs, we put them into a
@@ -104,17 +104,33 @@ def get_async_data_loader(config: dict, prefix: str):
         'prefix': prefix,
     }
 
+    if config['cache_setting'] is not None:
+        cache_setting = {key: value for key, value in config['cache_setting'].items()}
+        # append the dataset prefix
+        cache_setting['prefix'] = cache_setting['prefix'] + f'_{prefix}'
+    else:
+        cache_setting = None
+
+    if config['rotation_setting'] is not None:
+        rotation_setting = {key: value for key, value in config['rotation_setting'].items()}
+        # append the dataset prefix
+        if rotation_setting['medium'] == 'disk':
+            rotation_setting['prefix'] = rotation_setting['prefix'] + f'_{prefix}'
+    else:
+        rotation_setting = None
+
     # then create the loader
-    loader = AsyncDataLoader(
-        dataset_class=Dataset, # put the name of dataset class here
-        dataset_params=params, # put the name of dataset class here,
+    loader = DataLoader(
+        dataset_class=Dataset,
+        dataset_params=params,
         batch_size=config['batch_size'],
-        nb_servers=config[f'{prefix}_nb_server'],
-        start_port=config[f'{prefix}_start_port'],
+        nb_worker=config[f'{prefix}_nb_worker'],
         max_queue_size=config[f'{prefix}_max_queue_size'],
         shuffle=True if prefix == 'train' else False,
-        packet_size=config['packet_size'], # size (in bytes) of packet in tcp comm
-        wait_time=config['prefetch_time'], # time wait for data to be prefetched
+        nearby_shuffle=config['nearby_shuffle'],
+        cache_setting=cache_setting,
+        rotation_setting=rotation_setting,
+        use_threading=config['use_threading_in_data_loader'],
     )
 
     return loader
