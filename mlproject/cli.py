@@ -24,6 +24,7 @@ import shutil
 import json
 from loguru import logger
 from datetime import date
+import glob
 
 
 def parse_args():
@@ -33,7 +34,7 @@ def parse_args():
         "command",
         action='store',
         type=str,
-        choices=['init', 'new-project', 'new-file'],
+        choices=['init', 'new-project', 'new-file', 'modify-metadata'],
         help="primary command to run mlproject"
     )
 
@@ -81,7 +82,8 @@ def parse_args():
         action='store',
         type=str,
         default=None,
-        help='logging level'
+        choices=['MIT', 'proprietary', 'apache'],
+        help='license'
     )
     parser.add_argument(
         "--project-name",
@@ -106,13 +108,6 @@ def parse_args():
         help='the type of template to create'
     )
     parser.add_argument(
-        "--license-title",
-        action='store',
-        type=str,
-        default=None,
-        help='the license title to put in file header'
-    )
-    parser.add_argument(
         "--filename",
         action='store',
         type=str,
@@ -130,7 +125,116 @@ def parse_args():
     return parser.parse_known_args()
 
 
+def parse_authors_string(text):
+    authors_ = text.split(';')
+    authors = []
+    for author in authors_:
+        name = author.split(',')[0]
+        emails = author.split(',')[1:]
+        authors.append({'name': name, 'emails': emails})
+    return authors
+
+def modify_metadata(**kwargs):
+    from mlproject.constants import (
+        PACKAGE_DIR,
+        COMPANY,
+        AUTHORS,
+        LICENSES,
+        DEFAULT_LICENSE,
+    )
+    logger.warning('Modifying project metadata involves modifying source code')
+    logger.warning('Potentiall failure could lead to loss of source code')
+    response = input('Do you still want to perform this operation? (Y/N): ')
+    if response != 'Y':
+        return
+
+    path = os.path.abspath('.')
+    config_file = os.path.join(path, '.mlproject.json')
+    if not os.path.exists(config_file):
+        msg = (
+            f'Cannot find the config file in: {config_file}; ',
+            '"mlproject modify" must be called at the root of a project created by mlproject init'
+        )
+        raise RuntimeError(''.join(msg))
+
+    with open(config_file, 'r') as fid:
+        config = json.loads(fid.read())
+
+    if kwargs['authors'] is not None:
+        try:
+            kwargs['authors'] = parse_authors_string(kwargs['authors'])
+        except Exception:
+            raise RuntimeError('Cannot parse authors with the provided value: "{}"'.format(kwargs['authors']))
+
+    py_files = glob.glob(os.path.join(path, '**', '*.py'), recursive=True)
+    for file in py_files:
+        # backup
+        shutil.copy(file, file + '.bk')
+
+        with open(file, 'r') as fid:
+            content = fid.read().split('\n')
+
+        for i in range(len(content)):
+            row = content[i]
+            # modify company
+            modify_company = row.startswith('* Copyright') and kwargs['company'] is not None
+            if modify_company:
+                year = config['year']
+                content[i] = f'* Copyright: {year} {kwargs["company"]}'
+
+            modify_authors = row.startswith('* Authors') and kwargs['authors'] is not None
+            if modify_authors:
+                authors_string = []
+                for author in kwargs['authors']:
+                    authors_string.append(author['name'] + ' (' + ', '.join(author['emails']) + ')')
+                content[i] = f'* Authors: ' + ', '.join(authors_string)
+
+            modify_name = row.startswith('This is part of') and kwargs['project_name'] is not None
+            if modify_name:
+                content[i] = 'This is part of the {} project'.format(kwargs['project_name'])
+
+            modify_license = row.startswith('License') and kwargs['license'] is not None
+            if modify_license:
+                title = LICENSES[kwargs['license']]['title']
+                content[i+2] = f'{title}'
+
+        content = '\n'.join(content)
+        with open(file, 'w') as fid:
+            fid.write(content)
+        os.remove(file + '.bk')
+
+    # update config file
+    if kwargs['project_name'] is not None:
+        config['project_name_raw'] = kwargs['project_name']
+        config['project_name'] = kwargs['project_name'].replace(' ', '_')
+
+    if kwargs['authors'] is not None:
+        config['authors'] = kwargs['authors']
+
+    if kwargs['company'] is not None:
+        config['company'] = kwargs['company']
+
+    if kwargs['license'] is not None:
+        config['license_title'] = LICENSES[kwargs['license']]['title']
+        # copy the new license
+        with open(LICENSES[kwargs['license']]['path'], 'r') as fid:
+            license_content = fid.read()
+            license_content = license_content.replace('<COPYRIGHT HOLDER>', config['company'])
+            license_content = license_content.replace('<YEAR>', config['year'])
+
+        with open(os.path.join(path, 'LICENSE.txt'), 'w') as fid:
+            fid.write(license_content)
+
+
 def create_file(**kwargs):
+    from mlproject.constants import (
+        PACKAGE_DIR,
+        COMPANY,
+        AUTHORS,
+        LICENSES,
+        DEFAULT_LICENSE,
+    )
+
     # recursively find the mlproject configuration file
     if kwargs['path'] is None:
         path = os.path.abspath('.')
@@ -200,13 +304,13 @@ def create_file(**kwargs):
     else:
         project_name = kwargs['project_name']
 
-    if kwargs['license_title'] is None:
+    if kwargs['license'] is None:
         if config is None:
             license_title = DEFAULT_LICENSE['title']
         else:
             license_title = config['license_title']
     else:
-        license_title = kwargs['license_title']
+        license_title = LICENSES[kwargs['license']]['title']
 
     # get current time
     today = date.today()
@@ -390,6 +494,7 @@ def create_project(**kwargs):
         'company': company,
         'authors': authors,
         'license_title': license['title'],
+        'year': str(current_year),
     }
     with open(os.path.join(proj_dir, '.mlproject.json'), 'w') as fid:
         fid.write(json.dumps(mlconfig, indent=2))
@@ -587,11 +692,21 @@ def main():
             'authors': known_args.authors,
             'project_name': known_args.project_name,
             'path': known_args.path,
-            'license_title': known_args.license_title,
+            'license': known_args.license,
             'filename': known_args.filename,
             'description': known_args.desc,
         }
         create_file(**args)
+
+    elif known_args.command == 'modify-metadata':
+        # modify project metadata
+        args = {
+            'company': known_args.company,
+            'authors': known_args.authors,
+            'project_name': known_args.project_name,
+            'license': known_args.license,
+        }
+        modify_metadata(**args)
 
 if (__name__ == "__main__"):
     main()
