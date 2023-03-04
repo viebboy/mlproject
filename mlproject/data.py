@@ -24,6 +24,7 @@ from torch.utils.data import Dataset as TorchDataset
 import joblib
 import os
 import numpy as np
+import random
 from tqdm import tqdm
 
 from mlproject.constants import (
@@ -797,3 +798,198 @@ class ConcatDataset(TorchDataset):
                 break
         # remember to access dataset index backward
         return self._datasets[-dataset_idx][i - boundary]
+
+
+class ForwardValidationDataset:
+    """
+    Dataset wrapper that splits a time-series dataset for forward-validation
+    """
+    def __init__(dataset, nb_fold, nb_test_fold, test_fold_index, prefix):
+        assert nb_test_fold < nb_fold
+        assert test_fold_index < nb_test_fold
+        assert prefix in ['train', 'test']
+
+        total_len = len(dataset)
+        fold_size = int(np.ceil(total_len / nb_fold))
+        if prefix == 'train':
+            self.start_index = 0
+            self.stop_index = (nb_fold - nb_test_fold + test_fold_index) * fold_size
+        else:
+            self.start_index = (nb_fold - nb_test_fold + test_fold_index) * fold_size
+            self.stop_index = min(total_len, self.start_index + fold_size)
+
+        self._dataset = dataset
+        self._cur_index = -1
+
+    def __iter__(self):
+        self._cur_index = -1
+        return self
+
+    def __next__(self):
+        self._cur_index += 1
+        if self._cur_index < len(self):
+            return self.__getitem__(self._cur_index)
+        raise StopIteration
+
+    def __len__(self):
+        return self.stop_index - self.start_index
+
+    def __getitem__(self, i):
+        return self._dataset[self.start_index + i]
+
+
+class PickleSafeForwardValidationDataset(ForwardValidationDataset):
+    def __init__(
+        dataset_class,
+        dataset_params,
+        nb_fold,
+        nb_test_fold,
+        test_fold_index,
+        prefix
+    ):
+        dataset = dataset_class(**dataset_params)
+        super().__init__(dataset, nb_fold, nb_test_fold, test_fold_index, prefix)
+
+
+class ClassificationSampler:
+    def __init__(dataset, class_percentage: dict, label_getter=None):
+        # compute sample indices from each class
+        class_indices = self._compute_class_indices(dataset, label_getter)
+
+        # make sure percentage is right
+        total = 0
+        for lb in class_indices:
+            assert lb in class_percentage
+            total += class_percentage[lb]
+        assert total == 1, 'the total percentage of all classes must be 1'
+
+        # compute the target length for each class
+        target_len = self._compute_target_length(class_percentage, len(dataset))
+
+        # now perform sampling
+        self._dataset = dataset
+        self._target_len = target_len
+        self._class_indices = class_indices
+
+        # perform initial sampling
+        self._sampling()
+        # create a mask array to check whether a sample has been accessed or not
+        # when all samples have been accesssed, reset the sampling
+        self._access_mask = [False for _ in range(len(dataset))]
+        # counter is to avoid checking the status of the mask all the time
+        self._access_counter = 0
+
+        self._cur_index = -1
+
+    def _compute_class_indices(self, dataset, label_getter):
+        class_indices = {}
+        for i in range(len(dataset)):
+            if label_getter is None:
+                # if not specified, assume the 2nd element is label
+                lb = dataset[i][1]
+            else:
+                lb = label_getter(dataset[i])
+            if lb not in class_indices:
+                class_indices[lb] = [i,]
+            else:
+                class_indices[lb].append(i)
+
+        return class_indices
+
+    def _compute_target_length(self, target_percentage, total_len):
+        target_len = {}
+        labels = list(target_percentage.keys())
+        allocated = 0
+        for lb in labels[:-1]:
+            target_len[lb] = int(target_percentage[lb] * total_len)
+            allocated += target_len[lb]
+
+        # the last one should be computed by subtraction
+        target_len[labels[-1]] = total_len - allocated
+
+        for lb, value in target_len.items():
+            if value <= 0:
+                raise RuntimeError(
+                    f'the given class_percentage results in class {lb} having {value} samples'
+                )
+
+        return target_len
+
+    def _sampling(self):
+        if not hasattr(self, '_sampler'):
+            self._sampler = {lb: [] for lb in self._target_len}
+
+        sampler = {}
+        for lb, lb_size in self._target_len:
+            if lb_size >= len(self._class_indices[lb]):
+                # target length is larger than actual length
+                # requires oversampling
+                nb_repeat = int(np.floor(lb_size / len(self._class_indices[lb])))
+                sampler[lb] = []
+                # repeat entire index set
+                for _ in range(nb_repeat):
+                    sampler[lb].extend(self._class_indices[lb])
+                # compute how much more do we need
+                leftover = lb_size - len(sampler[lb])
+                if leftover > 0:
+                    sampler[lb].extend(random.sample(self._class_indices[lb], leftover))
+            else:
+                # target length is less than actual length
+                # need to perform sampling
+                indices = [i for i in self._class_indices[lb] if i not in self._sampler[lb]]
+                if len(indices) >= lb_size:
+                    sampler[lb] = random.sample(indices, lb_size)
+                else:
+                    sampler[lb] = indices
+                    sampler[lb].extend(random.sample(self._sampler[lb], lb_size - len(indices)))
+
+        self._sampler = sampler
+        self._index_map = []
+        labels = list(self._target_len.keys())
+        counter = {lb: 0 for lb in self._target_len}
+        while True:
+            for lb in labels:
+                self._index_map.append((lb, counter[lb]))
+                counter[lb] += 1
+                if counter[lb] >= len(self._sampler[lb]):
+                    labels.remove(lb)
+            if len(labels) == 0:
+                break
+
+        assert len(self._index_map) == len(self._dataset)
+
+    def __iter__(self):
+        self._cur_index = -1
+        return self
+
+    def __next__(self):
+        self._cur_index += 1
+        if self._cur_index < len(self):
+            return self.__getitem__(self._cur_index)
+        raise StopIteration
+
+    def __len__(self):
+        return len(self._dataset)
+
+    def __getitem__(self, i):
+        if self._access_counter >= len(self):
+            total_accessed = np.sum(self._access_mask)
+            if total_accessed == len(self):
+                # all items have been accessed, reset sampling
+                self._sampling()
+                self._access_counter = 0
+                self._access_mask = [False for _ in range(len(self))]
+            else:
+                self._access_counter = total_accessed
+
+        self._access_mask[i] = True
+        self._access_counter += 1
+
+        lb, idx = self._index_map[i]
+        return self._dataset[idx]
+
+
+class PickleSafeClassificationSampler(ClassificationSampler):
+    def __init__(self, dataset_class, dataset_params, class_percentage, label_getter=None):
+        dataset = dataset_class(**dataset_params)
+        super().__init__(dataset, class_percentage, label_getter)
