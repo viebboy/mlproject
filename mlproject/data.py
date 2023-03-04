@@ -804,7 +804,7 @@ class ForwardValidationDataset:
     """
     Dataset wrapper that splits a time-series dataset for forward-validation
     """
-    def __init__(dataset, nb_fold, nb_test_fold, test_fold_index, prefix):
+    def __init__(self, dataset, nb_fold, nb_test_fold, test_fold_index, prefix):
         assert nb_test_fold < nb_fold
         assert test_fold_index < nb_test_fold
         assert prefix in ['train', 'test']
@@ -840,6 +840,7 @@ class ForwardValidationDataset:
 
 class PickleSafeForwardValidationDataset(ForwardValidationDataset):
     def __init__(
+        self,
         dataset_class,
         dataset_params,
         nb_fold,
@@ -852,7 +853,7 @@ class PickleSafeForwardValidationDataset(ForwardValidationDataset):
 
 
 class ClassificationSampler:
-    def __init__(dataset, class_percentage: dict, label_getter=None):
+    def __init__(self, dataset, class_percentage: dict, label_getter=None):
         # compute sample indices from each class
         class_indices = self._compute_class_indices(dataset, label_getter)
 
