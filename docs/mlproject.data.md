@@ -137,3 +137,13 @@ This interface should be used when issues appeared during the caching process.
 -----------------------------------------
 
 This is similar to `mlproject.data.CacheIterator`, but pickle-safe. Similar idea to `mlproject.data.PickleSafeCacheDataset`. 
+
+
+## mlproject.data.ForwardValidationDataset
+------------------------------------------
+
+This class allows us to split a time-series dataset for forward validation purposes. 
+
+A time-series dataset is the one with samples ordered in chronological order.
+
+That is, sample i (dataset[i]) semantically happens before sample i+1 (dataset[i+1]). 
