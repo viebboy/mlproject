@@ -111,14 +111,12 @@ def main(
         val_loader = None
         test_loader = get_async_data_loader(config, 'test')
 
-    # -------------------------------------------------------
-
-    # -------------------- MODEL ----------------------------
-    model = DenseNet(**config['model_config'])
-
-    # -------------------------------------------------------
-
     try:
+        # -------------------- MODEL ----------------------------
+        model = DenseNet(**config['model_config'])
+
+        # -------------------------------------------------------
+
         trainer = get_trainer(config_file, config, config_name, config_index)
         trainer.fit(
             model,
@@ -131,7 +129,7 @@ def main(
         dispose_data_loader(train_loader, val_loader, test_loader)
         logger.warning('encounter the following error')
         raise error
-    finally:
+    else:
         dispose_data_loader(train_loader, val_loader, test_loader)
 
 

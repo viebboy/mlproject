@@ -113,19 +113,17 @@ def main(
         val_loader = get_async_loader(config, 'val')
         test_loader = get_async_loader(config, 'test')
 
-    # ------------------------------------------------------
-
-    # -------------- MODEL --------------------------------
-    #TODO: create model here
-    model = None
-    # -----------------------------------------------------
-
-    # create tensorboard logger here
-    tensorboard_logger = None
-    # prefix for this experiment
-    logger_prefix = ''
-
     try:
+        # -------------- MODEL --------------------------------
+        #TODO: create model here
+        model = None
+        # -----------------------------------------------------
+
+        # create tensorboard logger here
+        tensorboard_logger = None
+        # prefix for this experiment
+        logger_prefix = ''
+
         # create a trainer class
         trainer = get_trainer(
             config_file=config_file,
@@ -146,7 +144,7 @@ def main(
         dispose_data_loader(train_loader, val_loader, test_loader)
         logger.warning('encounter the following error')
         raise error
-    finally:
+    else:
         # clean up
         dispose_data_loader(train_loader, val_loader, test_loader)
 
