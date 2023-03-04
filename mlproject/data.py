@@ -940,13 +940,14 @@ class ClassificationSampler:
             else:
                 # target length is less than actual length
                 # need to perform sampling
-                indices = [i for i in self._class_indices[lb] if i not in self._sampler[lb]]
-                if len(indices) >= target_size:
-                    sampler[lb] = random.sample(indices, target_size)
+                old_indices = set(self._sampler[lb])
+                leftover_indices = [i for i in self._class_indices[lb] if i not in old_indices]
+                if len(leftover_indices) >= target_size:
+                    sampler[lb] = random.sample(leftover_indices, target_size)
                 else:
-                    sampler[lb] = indices
+                    sampler[lb] = leftover_indices
                     # sampling from the old list
-                    sampler[lb].extend(random.sample(self._sampler[lb], target_size - len(indices)))
+                    sampler[lb].extend(random.sample(self._sampler[lb], target_size - len(leftover_indices)))
 
         self._sampler = sampler
         self._index_map = []
