@@ -917,37 +917,41 @@ class ClassificationSampler:
         return target_len
 
     def _sampling(self):
+        logger.debug('compute sampling strategy')
         if not hasattr(self, '_sampler'):
             self._sampler = {lb: [] for lb in self._target_len}
 
         sampler = {}
-        for lb, lb_size in self._target_len:
-            if lb_size >= len(self._class_indices[lb]):
+        for lb, target_size in self._target_len.items():
+            actual_size = len(self._class_indices[lb])
+            if target_size >= actual_size:
                 # target length is larger than actual length
                 # requires oversampling
-                nb_repeat = int(np.floor(lb_size / len(self._class_indices[lb])))
+                nb_repeat = int(np.floor(target_size / actual_size))
                 sampler[lb] = []
                 # repeat entire index set
                 for _ in range(nb_repeat):
                     sampler[lb].extend(self._class_indices[lb])
+
                 # compute how much more do we need
-                leftover = lb_size - len(sampler[lb])
+                leftover = target_size - len(sampler[lb])
                 if leftover > 0:
                     sampler[lb].extend(random.sample(self._class_indices[lb], leftover))
             else:
                 # target length is less than actual length
                 # need to perform sampling
                 indices = [i for i in self._class_indices[lb] if i not in self._sampler[lb]]
-                if len(indices) >= lb_size:
-                    sampler[lb] = random.sample(indices, lb_size)
+                if len(indices) >= target_size:
+                    sampler[lb] = random.sample(indices, target_size)
                 else:
                     sampler[lb] = indices
-                    sampler[lb].extend(random.sample(self._sampler[lb], lb_size - len(indices)))
+                    # sampling from the old list
+                    sampler[lb].extend(random.sample(self._sampler[lb], target_size - len(indices)))
 
         self._sampler = sampler
         self._index_map = []
         labels = list(self._target_len.keys())
-        counter = {lb: 0 for lb in self._target_len}
+        counter = {lb: 0 for lb in labels}
         while True:
             for lb in labels:
                 self._index_map.append((lb, counter[lb]))
@@ -987,7 +991,8 @@ class ClassificationSampler:
         self._access_counter += 1
 
         lb, idx = self._index_map[i]
-        return self._dataset[idx]
+        original_idx = self._sampler[lb][idx]
+        return self._dataset[original_idx]
 
 
 class PickleSafeClassificationSampler(ClassificationSampler):
