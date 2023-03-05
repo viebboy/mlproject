@@ -72,6 +72,7 @@ class Conv(nn.Sequential):
                 groups=groups,
             )
         )
+        self.initialize()
 
     def initialize(self):
         for layer in self.modules():
@@ -345,6 +346,10 @@ class DenseNet(nn.Module):
             elif isinstance(layer, nn.BatchNorm1d):
                 nn.init.constant_(layer.weight, 1)
                 nn.init.constant_(layer.bias, 0.0)
+            elif isinstance(layer, nn.Linear):
+                nn.init.kaiming_normal_(layer.weight)
+                if hasattr(layer, 'bias'):
+                    nn.init.constant_(layer.bias, 0.0)
 
     def forward(self, x):
         if self.positional_encoder is not None:

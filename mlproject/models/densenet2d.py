@@ -99,6 +99,10 @@ class Conv(nn.Sequential):
             elif isinstance(layer, nn.BatchNorm2d):
                 nn.init.constant_(layer.weight, 1)
                 nn.init.constant_(layer.bias, 0.0)
+            elif isinstance(layer, nn.Linear):
+                nn.init.kaiming_normal_(layer.weight)
+                if hasattr(layer, 'bias'):
+                    nn.init.constant_(layer.bias, 0.0)
 
 
 class DenseLayer(nn.Module):
@@ -380,6 +384,7 @@ class DenseNet(nn.Module):
                 bias=use_bias_for_embedding_layer
             )
         )
+        self.initialize()
 
     def rearrange_input(self, x):
         patch_top_left = x[..., ::2, ::2]
@@ -412,6 +417,19 @@ class DenseNet(nn.Module):
             flops, params = thop.profile(self, inputs=(x,))
         logger.info('This model has {:.2f} M parameters and {:.2f} GFLOPs'.format(params/1e6, flops/1e9))
         return params, flops
+
+    def initialize(self):
+        for layer in self.modules():
+            if isinstance(layer, nn.Conv2d):
+                nn.init.kaiming_normal_(layer.weight)
+            elif isinstance(layer, nn.BatchNorm2d):
+                nn.init.constant_(layer.weight, 1)
+                nn.init.constant_(layer.bias, 0.0)
+            elif isinstance(layer, nn.Linear):
+                nn.init.kaiming_normal_(layer.weight)
+                if hasattr(layer, 'bias'):
+                    nn.init.constant_(layer.bias, 0.0)
+
 
 
 if __name__ == '__main__':
