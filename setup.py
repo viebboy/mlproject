@@ -32,7 +32,6 @@ setuptools.setup(
     license='LICENSE.txt',
     packages=setuptools.find_packages(),
     classifiers=['Operating System :: POSIX', ],
-    install_requires=['python_version >= "3.4"',],
     entry_points={
         'console_scripts': [
             'mlproject = mlproject.cli:main',
