@@ -25,6 +25,7 @@ from tabulate import tabulate
 from loguru import logger
 from tqdm import tqdm
 import time
+from mlproject.config import get_config_string
 
 from data import get_data_loader, get_async_data_loader, dispose_data_loader
 from trainer import get_trainer
@@ -84,12 +85,11 @@ def load_config(file: str, index: str, test_mode: bool):
     return config, config_name, config_description
 
 
-def print_config(config_name: str, config_description: str, config: dict):
+def print_config(config_name: str, config_description: str, config: dict, config_index: int):
     logger.info(f'CONFIGURATION NAME: {config_name}')
     logger.info(f'CONFIGURATION DESCRIPTION: {config_description}')
-    names = list(config.keys())
-    table = [[name, config[name]] for name in names]
-    print(tabulate(table, headers=['Config', 'Value']))
+    config_string = get_config_string(config, config_index)
+    print(config_string)
 
 
 def main(
@@ -101,7 +101,7 @@ def main(
     device
 ):
     # print config
-    print_config(config_name, config_description, config)
+    print_config(config_name, config_description, config, config_index)
 
     # -------- DATA ---------------------------------------
     if not config['use_async_loader']:

@@ -20,6 +20,7 @@ Apache 2.0 License
 import itertools
 import pprint
 import os
+from tabulate import tabulate
 
 from mlproject.config import ConfigValue, create_all_config as _create_all_config
 from mlproject.loss import MSE, MAE, CrossEntropy as CrossEntropyLoss

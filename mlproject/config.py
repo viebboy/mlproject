@@ -19,6 +19,7 @@ Apache 2.0 License
 
 import itertools
 import pprint
+from tabulate import tabulate
 
 
 class ConfigValue(object):
@@ -65,3 +66,31 @@ def print_all_config(configs):
         print(msg)
         print('-' * len(msg))
         pprint.pprint(item)
+
+
+def cut_string(text, max_length=120):
+    outputs = []
+    current_line = []
+    words = text.split(' ')
+    for word in words:
+        if len(' '.join(current_line + [word,])) < max_length:
+            current_line.append(word)
+        else:
+            outputs.append(' '.join(current_line))
+            current_line = []
+
+    if len(current_line) > 0:
+        outputs.append(' '.join(current_line))
+
+    return '\n'.join(outputs) + '\n'
+
+
+def get_config_string(config: dict, config_index: int):
+    config_string = ''
+    config_string += f'CONFIGURATION INDEX: {config_index}\n'
+    config_string += f'--------------------------------------\n'
+    names = list(config.keys())
+    table = [[name, cut_string(str(config[name]))] for name in names]
+    table = tabulate(table, headers=['Config Name', 'Config Value'])
+    config_string += table
+    return config_string
