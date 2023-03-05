@@ -43,6 +43,7 @@ from mlproject.trainer import (
     get_multiplicative_lr_scheduler,
     Trainer as BaseTrainer,
 )
+from mlproject.config import get_config_string
 
 
 # because we dont need to modify any logic in trainer, we simply remove the
@@ -82,6 +83,12 @@ def get_trainer(config_file: str, config: dict, config_name: str, config_index: 
     with open(os.path.join(output_dir, f'config_index_{config_index}.dill'), 'wb') as fid:
         dill.dump(config, fid)
 
+    # also save the textual content of the config in a text file
+    with open(os.path.join(log_dir, f'config_content.txt'), 'w') as fid:
+        fid.write(get_config_string(config, config_index))
+
+    with open(os.path.join(output_dir, f'config_content.txt'), 'w') as fid:
+        fid.write(get_config_string(config, config_index))
     # ---------------------------------------------------------
 
     # create lr scheduler
