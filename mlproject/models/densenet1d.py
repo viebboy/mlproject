@@ -325,6 +325,9 @@ class DenseNet(nn.Module):
                 if input_len is not None:
                     input_len = int(np.floor(input_len / 2))
 
+        if not global_average:
+            in_channels = in_channels * input_len
+
         if global_average:
             self.hidden_layers.append(GlobalAverage())
         else:
@@ -379,7 +382,7 @@ if __name__ == '__main__':
         'intermediate_positional_encoding': True,
         'input_len': 100,
         'embedding_dim': 128,
-        'global_average': True,
+        'global_average': False,
         'use_bias_for_embedding_layer': True,
     }
 
