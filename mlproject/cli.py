@@ -168,7 +168,7 @@ def parse_args():
     parser.add_argument(
         "--nb-parallel-exp",
         action='store',
-        type=str,
+        type=int,
         default=None,
         help='maximum number of parallel exps if running on CPU'
     )
@@ -763,10 +763,10 @@ def main():
         exp_launcher(
             known_args.entry_script,
             known_args.config_path,
-            args.device,
-            args.gpu_indices,
-            args.gpu_per_exp,
-            args.nb_parallel_exp
+            known_args.device,
+            known_args.gpu_indices,
+            known_args.gpu_per_exp,
+            known_args.nb_parallel_exp
         )
 
 if (__name__ == "__main__"):

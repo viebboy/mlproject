@@ -20,7 +20,7 @@ Apache License 2.0
 import os
 import threading
 import time
-from subprocess import Popen
+import subprocess
 from loguru import logger
 from queue import Queue
 import importlib.util
@@ -46,26 +46,32 @@ def thread_worker(
             if gpu_indices is not None:
                 env_var['CUDA_VISIBLE_DEVICES'] = ','.join(gpu_indices)
 
-            result = subprocess.run(
+            process = subprocess.Popen(
                 [
-                    'python3',
+                    'python',
                     entry_file,
                     '--config-path',
                     config_file,
-                    '--config-index',
-                    config_index,
+                    '--index',
+                    str(config_index),
                     '--device',
                     device,
                 ],
                 env=env_var,
                 stderr=subprocess.PIPE,
+                stdout=subprocess.PIPE,
             )
-            if result.returncode != 0:
-                logger.warning('the returncode from this run is non-zero, terminating now...')
+            process.wait()
+            if process.returncode != 0:
+                msg = (
+                    f'the returncode ({process.returncode}) from this run (index={config_index}) is non-zero, ',
+                    'terminating now...'
+                )
+                logger.warning(''.join(msg))
             output_queue.put(
                 {
-                    'returncode': result.returncode,
-                    'stderr': result.stderr,
+                    'returncode': process.returncode,
+                    'stderr': process.stderr.read().decode(),
                     'gpu_indices': gpu_indices,
                     'config_index': config_index,
                 }
@@ -82,7 +88,7 @@ def get_nb_of_total_exp(file: str):
         spec = importlib.util.spec_from_file_location('config_module', file)
         config_module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(config_module)
-        configs = config_module.create_all_config(index)
+        configs = config_module.create_all_config()
         return len(configs)
     except Exception as error:
         logger.warning(f'faced error when trying to load the config file')
@@ -234,7 +240,7 @@ def launch_on_cpu(entry_file, config_file, nb_parallel_exp):
                         # have issue
                         msg = (
                             f'faced issue when running configuration index: {result["config_index"]}. ',
-                            f'returncode is: {result["returncode"]}'
+                            f'returncode is: {result["returncode"]}, '
                             f'stderr is: {result["stderr"]}'
                         )
                         raise RuntimeError(''.join(msg))
@@ -261,7 +267,6 @@ def launch_on_cpu(entry_file, config_file, nb_parallel_exp):
         logger.info('done running all experiments')
 
 
-
 def exp_launcher(entry_file, config_file, device, gpu_indices, gpu_per_exp, nb_parallel_exp):
     if entry_file is None:
         raise RuntimeError('path to entry script must be specified via --entry-file')
@@ -283,6 +288,8 @@ def exp_launcher(entry_file, config_file, device, gpu_indices, gpu_per_exp, nb_p
             )
             raise RuntimeError(''.join(msg))
 
+    entry_file = os.path.abspath(entry_file)
+    config_file = os.path.abspath(config_file)
 
     if device == 'cuda':
         all_indices = GPUtil.getAvailable()
@@ -292,6 +299,11 @@ def exp_launcher(entry_file, config_file, device, gpu_indices, gpu_per_exp, nb_p
         if gpu_indices is None:
             gpu_indices = all_indices
         else:
+            try:
+                gpu_indices = [int(v) for v in gpu_indices.split(',')]
+            except Exception as error:
+                raise RuntimeError('--gpu-indices must be given as comma separated. For example 0,1,3')
+
             for idx in gpu_indices:
                 assert idx in all_indices
 
