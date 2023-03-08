@@ -144,6 +144,35 @@ def parse_args():
         default=None,
         help='path to entry script [used in launch-exp command]'
     )
+    parser.add_argument(
+        "--device",
+        action='store',
+        type=str,
+        default=None,
+        help='the type of device to run computation. Either cuda or cpu'
+    )
+    parser.add_argument(
+        "--gpu-indices",
+        action='store',
+        type=str,
+        default=None,
+        help='the indices of GPUs to use if device is cuda'
+    )
+    parser.add_argument(
+        "--gpu-per-exp",
+        action='store',
+        type=str,
+        default=None,
+        help='the number of GPUs to use per experiment'
+    )
+    parser.add_argument(
+        "--nb-parallel-exp",
+        action='store',
+        type=str,
+        default=None,
+        help='maximum number of parallel exps if running on CPU'
+    )
+
 
     return parser.parse_known_args()
 
@@ -732,8 +761,8 @@ def main():
         modify_metadata(**args)
     elif known_args.command == 'launch-exp':
         exp_launcher(
-            known_args.entry_file,
-            known_args.config_file,
+            known_args.entry_script,
+            known_args.config_path,
             args.device,
             args.gpu_indices,
             args.gpu_per_exp,
