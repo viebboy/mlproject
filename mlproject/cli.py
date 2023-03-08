@@ -26,6 +26,8 @@ from loguru import logger
 from datetime import date
 import glob
 
+from mlproject.exp_launcher import exp_launcher
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -728,6 +730,15 @@ def main():
             'license': known_args.license,
         }
         modify_metadata(**args)
+    elif known_args.command == 'launch-exp':
+        exp_launcher(
+            known_args.entry_file,
+            known_args.config_file,
+            args.device,
+            args.gpu_indices,
+            args.gpu_per_exp,
+            args.nb_parallel_exp
+        )
 
 if (__name__ == "__main__"):
     main()
