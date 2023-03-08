@@ -67,6 +67,7 @@ def run_exp(
                     'returncode': result.returncode,
                     'stderr': result.stderr,
                     'gpu_indices': gpu_indices,
+                    'config_index': config_index,
                 }
             )
         else:
@@ -93,8 +94,67 @@ def launch_on_cpu(entry_file, config_file, nb_parallel_exp):
     config_indices = list(range(total))
     indices_being_run = []
     indices_completed = []
-    while nb_done < total or nb_left > 0:
-        nb_exp_to_launch = min(nb_parallel_exp - nb_running, nb_left)
+
+    nb_threads = min(nb_parallel_exp, total)
+    input_queues = [Queue() for _ in range(nb_threads)]
+    output_queues = [Queue() for _ in range(nb_threads)]
+    close_events = [threading.Event() for _ in range(nb_threads)]
+
+    threads = [
+        threading.Thread(
+            target=run_exp,
+            args=(
+                entry_file,
+                config_file,
+                device,
+                input_queue,
+                output_queue,
+                close_event
+            )
+        ) for input_queue, output_queue, close_event in zip(input_queues, output_queues, close_events)
+    ]
+    for thread in threads:
+        thread.start()
+
+    running_mask = [False for _ in range(nb_threads)]
+
+    while len(indices_completed) < total:
+        # launch a run
+        new_launch = (
+            len(indices_being_run) < nb_parallel_exp and
+            sum(running_mask) < len(running_mask) and
+            len(config_indices) > 0
+        )
+        if new_launch:
+            for i in range(nb_threads):
+                if not running_mask[i]:
+                    index = config_indices.pop(0)
+                    running_mask[i] = True
+                    input_queues[i].put((index, None))
+                    indices_being_run.append(index)
+                    break
+
+        # check if anything complete
+        for i in range(nb_threads):
+            if not output_queues[i].empty():
+                result = output_queues[i].get()
+                if result['returncode'] != 0:
+                    # have issue
+                    msg = (
+                        f'faced issue when running configuration index: {result["config_index"]}. ',
+                        f'returncode is: {result["returncode"]}'
+                        f'stderr is: {result["stderr"]}'
+                    )
+                    # clean up
+                    for close_event in close_events:
+                        close_event.set()
+                    for thread in threads:
+                        thread.join()
+                    raise RuntimeError(''.join(msg))
+
+                indices_completed.append(result['config_index'])
+                indices_being_run.remove(result['config_index'])
+                running_mask[i] = False
 
 
 
