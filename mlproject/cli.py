@@ -34,7 +34,13 @@ def parse_args():
         "command",
         action='store',
         type=str,
-        choices=['init', 'new-project', 'new-file', 'modify-metadata'],
+        choices=[
+            'init',
+            'new-project',
+            'new-file',
+            'modify-metadata',
+            'launch-exp',
+        ],
         help="primary command to run mlproject"
     )
 
@@ -120,6 +126,21 @@ def parse_args():
         type=str,
         default=None,
         help='description of the file to create'
+    )
+    # parameters for launch-exp
+    parser.add_argument(
+        "--config-path",
+        action='store',
+        type=str,
+        default=None,
+        help='path to config [used in launch-exp command]'
+    )
+    parser.add_argument(
+        "--entry-script",
+        action='store',
+        type=str,
+        default=None,
+        help='path to entry script [used in launch-exp command]'
     )
 
     return parser.parse_known_args()
