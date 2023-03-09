@@ -172,7 +172,13 @@ def parse_args():
         default=None,
         help='maximum number of parallel exps if running on CPU'
     )
-
+    parser.add_argument(
+        "--worker-log-prefix",
+        action='store',
+        type=str,
+        default=None,
+        help='the prefix of the worker log files'
+    )
 
     return parser.parse_known_args()
 
@@ -766,7 +772,8 @@ def main():
             known_args.device,
             known_args.gpu_indices,
             known_args.gpu_per_exp,
-            known_args.nb_parallel_exp
+            known_args.nb_parallel_exp,
+            known_args.worker_log_prefix,
         )
 
 if (__name__ == "__main__"):

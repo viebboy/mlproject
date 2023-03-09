@@ -33,11 +33,23 @@ def thread_worker(
     device,
     input_queue,
     output_queue,
-    close_event
+    close_event,
+    log_prefix
 ):
+    process = None
+    if log_prefix is not None:
+        stderr = open(log_prefix + '.err', 'a')
+        stdout = open(log_prefix + '.out', 'a')
+    else:
+        stderr = subprocess.PIPE
+        stdout = subprocess.PIPE
+
     while True:
         if close_event.is_set():
             logger.info('receive information to close the worker thread, closing now...')
+            if process is not None:
+                process.kill()
+                process.wait()
             break
 
         if not input_queue.empty():
@@ -45,6 +57,15 @@ def thread_worker(
             env_var = os.environ.copy()
             if gpu_indices is not None:
                 env_var['CUDA_VISIBLE_DEVICES'] = ','.join(gpu_indices)
+
+            if device == 'cuda':
+                msg = (
+                    f'running config index {config_index} on ',
+                    '{}'.format(', '.join([f'GPU{i}' for i in gpu_indices]))
+                )
+                logger.info(''.join(msg))
+            else:
+                logger.info(f'running config index {config_index} on CPU')
 
             process = subprocess.Popen(
                 [
@@ -58,26 +79,58 @@ def thread_worker(
                     device,
                 ],
                 env=env_var,
-                stderr=subprocess.PIPE,
-                stdout=subprocess.PIPE,
+                stderr=stderr,
+                stdout=stdout,
             )
-            process.wait()
-            if process.returncode != 0:
-                msg = (
-                    f'the returncode ({process.returncode}) from this run (index={config_index}) is non-zero, ',
-                    'terminating now...'
-                )
-                logger.warning(''.join(msg))
-            output_queue.put(
-                {
-                    'returncode': process.returncode,
-                    'stderr': process.stderr.read().decode(),
-                    'gpu_indices': gpu_indices,
-                    'config_index': config_index,
-                }
-            )
+            is_terminated = False
+            while True:
+                # now wait for the process to finish or signal to kill
+                if close_event.is_set():
+                    process.kill()
+                    process.wait()
+                    is_terminated = True
+                    break
+
+                # if not killed, then poll
+                returncode = process.poll()
+                if returncode is None:
+                    time.sleep(5)
+                else:
+                    if process.returncode != 0:
+                        msg = (
+                            f'the returncode ({process.returncode}) from this run (index={config_index}) is non-zero, ',
+                            'terminating now...'
+                        )
+                        logger.warning(''.join(msg))
+
+                    if log_prefix is not None:
+                        err_msg = (
+                            'Error occurred in worker. Because --worker-log-prefix was provided, ',
+                            'error message has been redirected to ',
+                            '{}'.format(log_prefix + '.err')
+                        )
+                        err_msg = ''.join(err_msg)
+                    else:
+                        err_msg = process.stderr.read().decode()
+
+                    output_queue.put(
+                        {
+                            'returncode': process.returncode,
+                            'stderr': err_msg,
+                            'gpu_indices': gpu_indices,
+                            'config_index': config_index,
+                        }
+                    )
+                    break
+
+            if is_terminated:
+                break
         else:
             time.sleep(1)
+
+    if log_prefix is not None:
+        stdout.close()
+        stderr.close()
 
 
 def get_nb_of_total_exp(file: str):
@@ -95,7 +148,7 @@ def get_nb_of_total_exp(file: str):
         raise error
 
 
-def launch_on_gpu(entry_file, config_file, nb_parallel_exp, gpu_indices, gpu_per_exp):
+def launch_on_gpu(entry_file, config_file, nb_parallel_exp, gpu_indices, gpu_per_exp, log_prefix):
     total = get_nb_of_total_exp(config_file)
     config_indices = list(range(total))
     indices_being_run = []
@@ -106,18 +159,29 @@ def launch_on_gpu(entry_file, config_file, nb_parallel_exp, gpu_indices, gpu_per
     output_queues = [Queue() for _ in range(nb_threads)]
     close_events = [threading.Event() for _ in range(nb_threads)]
 
+    if log_prefix is None:
+        log_files = [None for _ in range(nb_threads)]
+    else:
+        log_files = [log_prefix + f'_worker_{i}' for i in range(nb_threads)]
+
     threads = [
         threading.Thread(
             target=thread_worker,
             args=(
                 entry_file,
                 config_file,
-                'gpu',
+                'cuda',
                 input_queue,
                 output_queue,
-                close_event
+                close_event,
+                log_file,
             )
-        ) for input_queue, output_queue, close_event in zip(input_queues, output_queues, close_events)
+        ) for input_queue, output_queue, close_event, log_file in zip(
+            input_queues,
+            output_queues,
+            close_events,
+            log_files,
+        )
     ]
     for thread in threads:
         thread.start()
@@ -184,7 +248,7 @@ def launch_on_gpu(entry_file, config_file, nb_parallel_exp, gpu_indices, gpu_per
 
 
 
-def launch_on_cpu(entry_file, config_file, nb_parallel_exp):
+def launch_on_cpu(entry_file, config_file, nb_parallel_exp, log_prefix):
     total = get_nb_of_total_exp(config_file)
     config_indices = list(range(total))
     indices_being_run = []
@@ -195,6 +259,11 @@ def launch_on_cpu(entry_file, config_file, nb_parallel_exp):
     output_queues = [Queue() for _ in range(nb_threads)]
     close_events = [threading.Event() for _ in range(nb_threads)]
 
+    if log_prefix is None:
+        log_files = [None for _ in range(nb_threads)]
+    else:
+        log_files = [log_prefix + f'_worker_{i}' for i in range(nb_threads)]
+
     threads = [
         threading.Thread(
             target=thread_worker,
@@ -204,9 +273,15 @@ def launch_on_cpu(entry_file, config_file, nb_parallel_exp):
                 'cpu',
                 input_queue,
                 output_queue,
-                close_event
+                close_event,
+                log_file,
             )
-        ) for input_queue, output_queue, close_event in zip(input_queues, output_queues, close_events)
+        ) for input_queue, output_queue, close_event, log_file in zip(
+            input_queues,
+            output_queues,
+            close_events,
+            log_files,
+        )
     ]
     for thread in threads:
         thread.start()
@@ -267,7 +342,7 @@ def launch_on_cpu(entry_file, config_file, nb_parallel_exp):
         logger.info('done running all experiments')
 
 
-def exp_launcher(entry_file, config_file, device, gpu_indices, gpu_per_exp, nb_parallel_exp):
+def exp_launcher(entry_file, config_file, device, gpu_indices, gpu_per_exp, nb_parallel_exp, log_prefix):
     if entry_file is None:
         raise RuntimeError('path to entry script must be specified via --entry-file')
 
@@ -321,6 +396,6 @@ def exp_launcher(entry_file, config_file, device, gpu_indices, gpu_per_exp, nb_p
             )
             logger.warning(''.join(msg))
 
-        launch_on_gpu(entry_file, config_file, nb_parallel_exp, gpu_indices, gpu_per_exp)
+        launch_on_gpu(entry_file, config_file, nb_parallel_exp, gpu_indices, gpu_per_exp, log_prefix)
     else:
-        launch_on_cpu(entry_file, config_file, nb_parallel_exp)
+        launch_on_cpu(entry_file, config_file, nb_parallel_exp, log_prefix)
