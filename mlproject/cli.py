@@ -161,7 +161,7 @@ def parse_args():
     parser.add_argument(
         "--gpu-per-exp",
         action='store',
-        type=str,
+        type=int,
         default=None,
         help='the number of GPUs to use per experiment'
     )

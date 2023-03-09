@@ -24,7 +24,7 @@ import subprocess
 from loguru import logger
 from queue import Queue
 import importlib.util
-import GPUtil
+import torch
 
 
 def thread_worker(
@@ -56,7 +56,7 @@ def thread_worker(
             config_index, gpu_indices = input_queue.get()
             env_var = os.environ.copy()
             if gpu_indices is not None:
-                env_var['CUDA_VISIBLE_DEVICES'] = ','.join(gpu_indices)
+                env_var['CUDA_VISIBLE_DEVICES'] = ','.join([str(v) for v in gpu_indices])
 
             if device == 'cuda':
                 msg = (
@@ -150,6 +150,7 @@ def get_nb_of_total_exp(file: str):
 
 def launch_on_gpu(entry_file, config_file, nb_parallel_exp, gpu_indices, gpu_per_exp, log_prefix):
     total = get_nb_of_total_exp(config_file)
+    logger.info(f'total number of configuration indices: {total}')
     config_indices = list(range(total))
     indices_being_run = []
     indices_completed = []
@@ -158,6 +159,8 @@ def launch_on_gpu(entry_file, config_file, nb_parallel_exp, gpu_indices, gpu_per
     input_queues = [Queue() for _ in range(nb_threads)]
     output_queues = [Queue() for _ in range(nb_threads)]
     close_events = [threading.Event() for _ in range(nb_threads)]
+
+    logger.info(f'running a maximum of {nb_threads} workers in parallel on GPU')
 
     if log_prefix is None:
         log_files = [None for _ in range(nb_threads)]
@@ -195,7 +198,7 @@ def launch_on_gpu(entry_file, config_file, nb_parallel_exp, gpu_indices, gpu_per
                 len(indices_being_run) < nb_parallel_exp and
                 sum(running_mask) < len(running_mask) and
                 len(config_indices) > 0 and
-                len(gpu_indices) > gpu_per_exp
+                len(gpu_indices) >= gpu_per_exp
             )
             if new_launch:
                 for i in range(nb_threads):
@@ -250,6 +253,7 @@ def launch_on_gpu(entry_file, config_file, nb_parallel_exp, gpu_indices, gpu_per
 
 def launch_on_cpu(entry_file, config_file, nb_parallel_exp, log_prefix):
     total = get_nb_of_total_exp(config_file)
+    logger.info(f'total number of configuration indices: {total}')
     config_indices = list(range(total))
     indices_being_run = []
     indices_completed = []
@@ -258,6 +262,8 @@ def launch_on_cpu(entry_file, config_file, nb_parallel_exp, log_prefix):
     input_queues = [Queue() for _ in range(nb_threads)]
     output_queues = [Queue() for _ in range(nb_threads)]
     close_events = [threading.Event() for _ in range(nb_threads)]
+
+    logger.info(f'running a maximum of {nb_threads} workers in parallel on CPU')
 
     if log_prefix is None:
         log_files = [None for _ in range(nb_threads)]
@@ -355,6 +361,7 @@ def exp_launcher(entry_file, config_file, device, gpu_indices, gpu_per_exp, nb_p
     if device == 'cuda':
         if gpu_per_exp is None:
             raise RuntimeError('the number of GPUs to use per experiment must be given via --gpu-per-exp')
+
     else:
         if nb_parallel_exp is None:
             msg = (
@@ -367,7 +374,7 @@ def exp_launcher(entry_file, config_file, device, gpu_indices, gpu_per_exp, nb_p
     config_file = os.path.abspath(config_file)
 
     if device == 'cuda':
-        all_indices = GPUtil.getAvailable()
+        all_indices = list(range(torch.cuda.device_count()))
         if len(all_indices) == 0:
             raise RuntimeError('the running device is CUDA but cannot detect any GPUs')
 
@@ -389,12 +396,22 @@ def exp_launcher(entry_file, config_file, device, gpu_indices, gpu_per_exp, nb_p
             )
             raise RuntimeError(''.join(msg))
 
-        if len(gpu_indices) % gpu_per_run != 0:
+        if len(gpu_indices) % gpu_per_exp != 0:
             msg = (
-                f'there are {len(gpu_indices)} GPU(s) but each exp run requires {gpu_per_run} GPU(s) ',
+                f'there are {len(gpu_indices)} GPU(s) but each exp run requires {gpu_per_exp} GPU(s) ',
                 'so we cannot utilize all GPUs at the same time'
             )
             logger.warning(''.join(msg))
+
+        if nb_parallel_exp is not None:
+            msg = (
+                'users should not use --nb-parallel-exp when using cuda ',
+                'the number of parallel experiments is determined via the number of GPUs specified ',
+                'and the number of gpu per experiment specified by the users',
+            )
+            raise RuntimeError(''.join(msg))
+
+        nb_parallel_exp = len(gpu_indices)
 
         launch_on_gpu(entry_file, config_file, nb_parallel_exp, gpu_indices, gpu_per_exp, log_prefix)
     else:
