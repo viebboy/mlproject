@@ -27,6 +27,7 @@ from datetime import date
 import glob
 
 from mlproject.exp_launcher import exp_launcher
+from mlproject.exp_summarizer import summarize_experiments
 
 
 def parse_args():
@@ -42,6 +43,7 @@ def parse_args():
             'new-file',
             'modify-metadata',
             'launch-exp',
+            'summarize-exp',
         ],
         help="primary command to run mlproject"
     )
@@ -135,7 +137,7 @@ def parse_args():
         action='store',
         type=str,
         default=None,
-        help='path to config [used in launch-exp command]'
+        help='path to config [used in launch-exp or summarize command]'
     )
     parser.add_argument(
         "--entry-script",
@@ -178,6 +180,20 @@ def parse_args():
         type=str,
         default=None,
         help='the prefix of the worker log files'
+    )
+    parser.add_argument(
+        "--output-file",
+        action='store',
+        type=str,
+        default=None,
+        help='output file to write the summary of experiment results [used in summarize-exp]'
+    )
+    parser.add_argument(
+        "--delimiter",
+        action='store',
+        type=str,
+        default=None,
+        help='delimiter to use when writing to csv file [used in summarize-exp]'
     )
 
     return parser.parse_known_args()
@@ -774,6 +790,12 @@ def main():
             known_args.gpu_per_exp,
             known_args.nb_parallel_exp,
             known_args.worker_log_prefix,
+        )
+    elif known_args.command == 'summarize-exp':
+        summarize_experiments(
+            known_args.config_path,
+            known_args.output_file,
+            known_args.delimiter,
         )
 
 if (__name__ == "__main__"):

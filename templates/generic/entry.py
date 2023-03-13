@@ -103,50 +103,58 @@ def main(
     # print config
     print_config(config_name, config_description, config, config_index)
 
-    # -------- DATA ---------------------------------------
-    if not config['use_async_loader']:
-        train_loader = get_loader(config, 'train')
-        val_loader = get_loader(config, 'val')
-        test_loader = get_loader(config, 'test')
-    else:
-        train_loader = get_async_loader(config, 'train')
-        val_loader = get_async_loader(config, 'val')
-        test_loader = get_async_loader(config, 'test')
+    # check the number of trials to repeat the experiment of a config
+    if 'nb_trial' not in config:
+        config['nb_trial'] = 1
 
-    try:
-        # -------------- MODEL --------------------------------
-        #TODO: create model here
-        model = None
-        # -----------------------------------------------------
+    # repeat the experiments of a configuration
+    for trial_index in range(config['nb_trial']):
+        config['trial_index'] = trial_index
 
-        # create tensorboard logger here
-        tensorboard_logger = None
-        # prefix for this experiment
-        logger_prefix = ''
+        # -------- DATA ---------------------------------------
+        if not config['use_async_loader']:
+            train_loader = get_loader(config, 'train')
+            val_loader = get_loader(config, 'val')
+            test_loader = get_loader(config, 'test')
+        else:
+            train_loader = get_async_loader(config, 'train')
+            val_loader = get_async_loader(config, 'val')
+            test_loader = get_async_loader(config, 'test')
 
-        # create a trainer class
-        trainer = get_trainer(
-            config_file=config_file,
-            config=config,
-            config_name=config_name,
-            config_index=config_index
-        )
-        trainer.fit(
-            model,
-            {'dataloader': train_loader},
-            {'dataloader': val_loader},
-            {'dataloader': test_loader},
-            device=device,
-            tensorboard_logger=tensorboard_logger,
-            logger_prefix=logger_prefix,
-        )
-    except Exception as error:
-        dispose_data_loader(train_loader, val_loader, test_loader)
-        logger.warning('encounter the following error')
-        raise error
-    else:
-        # clean up
-        dispose_data_loader(train_loader, val_loader, test_loader)
+        try:
+            # -------------- MODEL --------------------------------
+            #TODO: create model here
+            model = None
+            # -----------------------------------------------------
+
+            # create tensorboard logger here
+            tensorboard_logger = None
+            # prefix for this experiment
+            logger_prefix = ''
+
+            # create a trainer class
+            trainer = get_trainer(
+                config_file=config_file,
+                config=config,
+                config_name=config_name,
+                config_index=config_index
+            )
+            trainer.fit(
+                model,
+                {'dataloader': train_loader},
+                {'dataloader': val_loader},
+                {'dataloader': test_loader},
+                device=device,
+                tensorboard_logger=tensorboard_logger,
+                logger_prefix=logger_prefix,
+            )
+        except Exception as error:
+            dispose_data_loader(train_loader, val_loader, test_loader)
+            logger.warning('encounter the following error')
+            raise error
+        else:
+            # clean up
+            dispose_data_loader(train_loader, val_loader, test_loader)
 
 
 if __name__ == '__main__':

@@ -93,6 +93,8 @@ TODO: MODIFY CONTENT INSIDE ALL_CONFIGS TO SPECIFY THE SET OF CONFIGURATIONS
 
 
 ALL_CONFIGS = {
+    # nb trial
+    'nb_trial': ConfigValue(5),
     # model config
     'model_config': ConfigValue(MODEL1_CONFIG, MODEL2_CONFIG), #list all possible model configs
     # output dir to save final results and log dir to save intermediate checkpoints
