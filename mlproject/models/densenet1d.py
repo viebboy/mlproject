@@ -275,6 +275,7 @@ class DenseNet(nn.Module):
         global_average = kwargs['global_average']
         embedding_dim = kwargs['embedding_dim']
         use_bias_for_embedding_layer = kwargs['use_bias_for_embedding_layer']
+        init_stride = kwargs['init_stride']
 
         assert len(stages) == len(growth_rates)
 
@@ -290,12 +291,12 @@ class DenseNet(nn.Module):
             in_channels=nb_features,
             out_channels=nb_init_filters,
             kernel_size=init_kernel_size,
-            stride=2,
-            padding=1,
+            stride=init_stride,
+            padding=init_kernel_size // 2,
             bias=True,
         )
 
-        if input_len is not None:
+        if input_len is not None and init_stride == 2:
             input_len = int(np.ceil(input_len/2))
 
         self.hidden_layers = nn.ModuleList()
@@ -369,9 +370,10 @@ if __name__ == '__main__':
     params = {
         'nb_features': 10,
         'nb_init_filters': 24,
-        'init_kernel_size': 3,
-        'stages': [3, 3, 3],
-        'growth_rates': [12, 12, 12],
+        'init_kernel_size': 5,
+        'init_stride': 1,
+        'stages': [3, 3, 3, 3, 3],
+        'growth_rates': [12, 12, 12, 12, 12],
         'bottleneck': 0.5,
         'activation': torch.nn.SiLU(inplace=True),
         'use_batchnorm': True,
