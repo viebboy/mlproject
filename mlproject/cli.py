@@ -299,6 +299,9 @@ def modify_metadata(**kwargs):
         with open(os.path.join(path, 'LICENSE.txt'), 'w') as fid:
             fid.write(license_content)
 
+    with open(config_file, 'w') as fid:
+        fid.write(json.dumps(config, indent=2))
+
 
 def create_file(**kwargs):
     from mlproject.constants import (
