@@ -797,6 +797,7 @@ def main():
     elif known_args.command == 'summarize-exp':
         summarize_experiments(
             known_args.config_path,
+            known_args.entry_script,
             known_args.output_file,
             known_args.delimiter,
         )

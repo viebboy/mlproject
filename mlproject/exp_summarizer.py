@@ -18,6 +18,7 @@ Apache License 2.0
 """
 
 import os
+import sys
 import time
 from loguru import logger
 import importlib.util
@@ -55,9 +56,16 @@ def load_config_value(folder):
     return config_value
 
 
-def summarize_experiments(config_path: str, output_file: str, delimiter):
+def summarize_experiments(config_path: str, entry_script: str, output_file: str, delimiter):
     if config_path is None:
-        raise RuntimeError('--config-path must be provided')
+        raise RuntimeError('path to configuration file must be provided via --config-path')
+    if entry_script is None:
+        raise RuntimeError('path to entry script must be provided via --entry-script')
+
+    entry_script = os.path.abspath(entry_script)
+    config_script = os.path.abspath(config_path)
+    root_dir = os.path.dirname(entry_script)
+    sys.path.append(root_dir)
 
     # load the configuration module
     config_module = load_config_module(config_path)
