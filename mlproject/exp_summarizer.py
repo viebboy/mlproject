@@ -67,6 +67,8 @@ def summarize_experiments(
         raise RuntimeError('path to configuration file must be provided via --config-path')
     if entry_script is None:
         raise RuntimeError('path to entry script must be provided via --entry-script')
+    if selected_metrics is not None:
+        selected_metrics = selected_metrics.split(',')
 
     entry_script = os.path.abspath(entry_script)
     config_script = os.path.abspath(config_path)
@@ -175,7 +177,6 @@ def summarize_experiments(
         if selected_metrics is None:
             metrics = list(performance.keys())
         else:
-            selected_metrics = selected_metrics.split(',')
             all_metrics = list(performance.keys())
             metrics = []
             for m in selected_metrics:

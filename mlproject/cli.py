@@ -807,6 +807,7 @@ def main():
             known_args.entry_script,
             known_args.output_file,
             known_args.delimiter,
+            known_args.metrics,
         )
 
 if (__name__ == "__main__"):
