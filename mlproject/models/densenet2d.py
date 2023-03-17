@@ -427,7 +427,7 @@ class DenseNet(nn.Module):
                 nn.init.constant_(layer.bias, 0.0)
             elif isinstance(layer, nn.Linear):
                 nn.init.kaiming_normal_(layer.weight)
-                if hasattr(layer, 'bias'):
+                if hasattr(layer, 'bias') and layer.bias is not None:
                     nn.init.constant_(layer.bias, 0.0)
 
 

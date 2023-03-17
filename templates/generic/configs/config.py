@@ -67,6 +67,8 @@ ConfigValue() is essential a container that contains all possible values for a g
 """
 
 ALL_CONFIGS = {
+    # number of trials to repeat a particular config
+    'nb_trial': ConfigValue(5),
     # ------- model config ----------------
     'model_configs': ConfigValue(MODEL1_CONFIG, MODEL2_CONFIG), #list all possible model configs
     # -------------------------------------

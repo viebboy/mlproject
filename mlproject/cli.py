@@ -26,6 +26,9 @@ from loguru import logger
 from datetime import date
 import glob
 
+from mlproject.exp_launcher import exp_launcher
+from mlproject.exp_summarizer import summarize_experiments
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -34,7 +37,14 @@ def parse_args():
         "command",
         action='store',
         type=str,
-        choices=['init', 'new-project', 'new-file', 'modify-metadata'],
+        choices=[
+            'init',
+            'new-project',
+            'new-file',
+            'modify-metadata',
+            'launch-exp',
+            'summarize-exp',
+        ],
         help="primary command to run mlproject"
     )
 
@@ -120,6 +130,77 @@ def parse_args():
         type=str,
         default=None,
         help='description of the file to create'
+    )
+    # parameters for launch-exp
+    parser.add_argument(
+        "--config-path",
+        action='store',
+        type=str,
+        default=None,
+        help='path to config [used in launch-exp or summarize command]'
+    )
+    parser.add_argument(
+        "--entry-script",
+        action='store',
+        type=str,
+        default=None,
+        help='path to entry script [used in launch-exp command]'
+    )
+    parser.add_argument(
+        "--device",
+        action='store',
+        type=str,
+        default=None,
+        help='the type of device to run computation. Either cuda or cpu'
+    )
+    parser.add_argument(
+        "--gpu-indices",
+        action='store',
+        type=str,
+        default=None,
+        help='the indices of GPUs to use if device is cuda'
+    )
+    parser.add_argument(
+        "--gpu-per-exp",
+        action='store',
+        type=int,
+        default=None,
+        help='the number of GPUs to use per experiment'
+    )
+    parser.add_argument(
+        "--nb-parallel-exp",
+        action='store',
+        type=int,
+        default=None,
+        help='maximum number of parallel exps if running on CPU'
+    )
+    parser.add_argument(
+        "--worker-log-prefix",
+        action='store',
+        type=str,
+        default=None,
+        help='the prefix of the worker log files'
+    )
+    parser.add_argument(
+        "--output-file",
+        action='store',
+        type=str,
+        default=None,
+        help='output file to write the summary of experiment results [used in summarize-exp]'
+    )
+    parser.add_argument(
+        "--delimiter",
+        action='store',
+        type=str,
+        default=None,
+        help='delimiter to use when writing to csv file [used in summarize-exp]'
+    )
+    parser.add_argument(
+        "--metrics",
+        action='store',
+        type=str,
+        default=None,
+        help='metrics to summarize the results, comma separated list [used in summarize-exp]'
     )
 
     return parser.parse_known_args()
@@ -224,6 +305,9 @@ def modify_metadata(**kwargs):
 
         with open(os.path.join(path, 'LICENSE.txt'), 'w') as fid:
             fid.write(license_content)
+
+    with open(config_file, 'w') as fid:
+        fid.write(json.dumps(config, indent=2))
 
 
 def create_file(**kwargs):
@@ -707,6 +791,24 @@ def main():
             'license': known_args.license,
         }
         modify_metadata(**args)
+    elif known_args.command == 'launch-exp':
+        exp_launcher(
+            known_args.entry_script,
+            known_args.config_path,
+            known_args.device,
+            known_args.gpu_indices,
+            known_args.gpu_per_exp,
+            known_args.nb_parallel_exp,
+            known_args.worker_log_prefix,
+        )
+    elif known_args.command == 'summarize-exp':
+        summarize_experiments(
+            known_args.config_path,
+            known_args.entry_script,
+            known_args.output_file,
+            known_args.delimiter,
+            known_args.metrics,
+        )
 
 if (__name__ == "__main__"):
     main()

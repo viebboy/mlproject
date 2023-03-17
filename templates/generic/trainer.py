@@ -320,7 +320,15 @@ def get_trainer(config_file: str, config: dict, config_name: str, config_index: 
 
     # need to create subdir as output dir and log dir for this particular exp
     config_name = config_name.replace(' ', '_')
-    output_dir = os.path.join(config['output_dir'], config_name, '{:09d}'.format(config_index))
+    # output directory path has the following structure:
+    # user_given_dir/config_name/config_index/trial_index/
+    output_dir = os.path.join(
+        config['output_dir'],
+        config_name,
+        '{:09d}'.format(config_index),
+        '{:09d}'.format(config['trial_index']),
+    )
+    # under the output dir is another subdir for checkpoints
     log_dir = os.path.join(output_dir, 'checkpoints')
 
     if not os.path.exists(output_dir):

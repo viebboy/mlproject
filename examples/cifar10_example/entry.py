@@ -100,36 +100,41 @@ def main(
     # print config
     print_config(config_name, config_description, config, config_index)
 
-    # -------------- DATA -----------------------------------
-    if not config['use_async_loader']:
-        train_loader = get_data_loader(config, 'train')
-        val_loader = None
-        test_loader = get_data_loader(config, 'test')
-    else:
-        train_loader = get_async_data_loader(config, 'train')
-        val_loader = None
-        test_loader = get_async_data_loader(config, 'test')
+    if 'nb_trial' not in config:
+        config['nb_trial'] = 5
 
-    try:
-        # -------------------- MODEL ----------------------------
-        model = DenseNet(**config['model_config'])
+    for trial_index in range(config['nb_trial']):
+        config['trial_index'] = trial_index
+        # -------------- DATA -----------------------------------
+        if not config['use_async_loader']:
+            train_loader = get_data_loader(config, 'train')
+            val_loader = None
+            test_loader = get_data_loader(config, 'test')
+        else:
+            train_loader = get_async_data_loader(config, 'train')
+            val_loader = None
+            test_loader = get_async_data_loader(config, 'test')
 
-        # -------------------------------------------------------
+        try:
+            # -------------------- MODEL ----------------------------
+            model = DenseNet(**config['model_config'])
 
-        trainer = get_trainer(config_file, config, config_name, config_index)
-        trainer.fit(
-            model,
-            {'dataloader': train_loader},
-            {'dataloader': val_loader},
-            {'dataloader': test_loader},
-            device=device,
-        )
-    except Exception as error:
-        dispose_data_loader(train_loader, val_loader, test_loader)
-        logger.warning('encounter the following error')
-        raise error
-    else:
-        dispose_data_loader(train_loader, val_loader, test_loader)
+            # -------------------------------------------------------
+
+            trainer = get_trainer(config_file, config, config_name, config_index)
+            trainer.fit(
+                model,
+                {'dataloader': train_loader},
+                {'dataloader': val_loader},
+                {'dataloader': test_loader},
+                device=device,
+            )
+        except Exception as error:
+            dispose_data_loader(train_loader, val_loader, test_loader)
+            logger.warning('encounter the following error')
+            raise error
+        else:
+            dispose_data_loader(train_loader, val_loader, test_loader)
 
 
 if __name__ == '__main__':

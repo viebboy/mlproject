@@ -42,6 +42,9 @@ class ConfigValue(object):
             return self._value[self._index]
         raise StopIteration
 
+    def __len__(self):
+        return len(self._value)
+
 
 def create_all_config(config_set):
     names = sorted(config_set.keys())
