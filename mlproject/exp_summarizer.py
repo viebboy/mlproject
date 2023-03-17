@@ -56,7 +56,13 @@ def load_config_value(folder):
     return config_value
 
 
-def summarize_experiments(config_path: str, entry_script: str, output_file: str, delimiter):
+def summarize_experiments(
+    config_path: str,
+    entry_script: str,
+    output_file: str,
+    delimiter,
+    selected_metrics,
+):
     if config_path is None:
         raise RuntimeError('path to configuration file must be provided via --config-path')
     if entry_script is None:
@@ -166,7 +172,22 @@ def summarize_experiments(config_path: str, entry_script: str, output_file: str,
                             except:
                                 performance[key].append(p['test'][m])
 
-        metrics = list(performance.keys())
+        if selected_metrics is None:
+            metrics = list(performance.keys())
+        else:
+            selected_metrics = selected_metrics.split(',')
+            all_metrics = list(performance.keys())
+            metrics = []
+            for m in selected_metrics:
+                for v in all_metrics:
+                    if m in v:
+                        metrics.append(v)
+            if len(metrics) == 0:
+                logger.warning('--metrics was specified but the artifacts contain no such metric')
+                logger.warning(f'user specified the following metrics: {selected_metrics}')
+                logger.warning(f'artifacts contain the following metrics: {all_metrics}')
+                raise RuntimeError('--metrics was specified but the artifacts contain no such metric')
+
         metrics.sort()
         summary = {}
         sorted_metrics = []

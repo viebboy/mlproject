@@ -195,6 +195,13 @@ def parse_args():
         default=None,
         help='delimiter to use when writing to csv file [used in summarize-exp]'
     )
+    parser.add_argument(
+        "--metrics",
+        action='store',
+        type=str,
+        default=None,
+        help='metrics to summarize the results, comma separated list [used in summarize-exp]'
+    )
 
     return parser.parse_known_args()
 
