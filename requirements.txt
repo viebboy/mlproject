@@ -13,4 +13,3 @@ torch
 torchvision
 thop
 pandas
-GPUtil

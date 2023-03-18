@@ -29,6 +29,8 @@ where:
 
 ## Usage
 
+### Create a new project from template
+
 To create a new project template, we can run:
 
 ```bash
@@ -44,9 +46,11 @@ mlproject new-project \
 In addition, `mlproject` also provides convenient datastructures and classes that can be used to quickly implement new ML ideas.
 
 
+### Create new file inside a project
+
 When inside a project created by `mlproject`, we could create an empty file by using the following command:
 
-```python
+```bash
 mlproject new-file \
     --filename ${NAME_OF_THE_FILE} \
     --path ${PATH_TO_CREATE_FILE_UNDER} \
@@ -55,7 +59,65 @@ mlproject new-file \
 
 with `--path` is defaulted to `.`
 
-The new file when created will have the same header structure as other files in the project with proper author names, emails, licenses, etc.
+The new file when created will have the same header structure as other files in the project with proper date, author names, emails, licenses, etc.
+
+
+### Modify project's metadata
+
+When we want to modify the metadata of a project such as the list of authors, the license or the company, we could run the following command in the main directory of a project created by ˋmlproject new-projectˋ as follows:
+
+
+```
+mlproject modify-metadata \
+    --project-name "new name for this project" \
+    --authors "new author list" \
+    --company "new company that owns this project" \
+    --license "new license"
+
+```
+
+The above command will change content of the metadata file and all the headers of all python files. 
+The convention for `--authors` is similar to the project creation command above
+
+
+### Launch experiments in parallel
+
+If you're using the project template created by `mlproject new-project`, you'll run a single experiment configuration via the `entry.py` script.
+
+What if your machine has many GPUs or CPUs and you would like to run many experiment configurations in parallel? 
+
+`mlproject launch-exp` is the command to use:
+
+
+```bash
+mlproject launch-exp \
+    --entry-script "path to entry script" \
+    --config-path "path to configuration file" \
+    --device "either cpu or cuda" \
+    --gpu-indices "the list of GPUs to use, comma separated. Default to all GPUs if device is cuda" \
+    --gpu-per-exp "the number of GPUs to use for one experiment configuration" \
+    --log-prefix "the prefix to dump logs from workers" \
+    --nb-parallel-exp "number of parallel experiments to run. Only needed when device is cpu"
+
+```
+
+
+### Create a summary of experiment results
+
+If you're using the project template created by `mlproject new-project` and you've run a lot of experiments, you could create a table that summarizes
+
+the results by running the following command:
+
+```bash
+mlproject summarize-exp \
+    --entry-script "path to entry script" \
+    --config-path "path to configuration file" \
+    --metrics "the list of metrics you want to include in the report. Comma separated"
+
+```
+
+
+The last switch `--metrics` is especially helpful if you only want to take a look at a subset of metrics.
 
 
 ## Composing a project
