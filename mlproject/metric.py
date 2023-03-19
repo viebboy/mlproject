@@ -127,14 +127,51 @@ class Accuracy(Metric):
     Classification Accuracy
     """
 
-    def __init__(self, name='accuracy'):
+    def __init__(self, name='accuracy', class_index=None, confidence_threshold=None):
         super(Accuracy, self).__init__(name=name)
+
+        if class_index is not None:
+            if confidence_threshold is None:
+                msg = (
+                    'when class_index is specified, ',
+                    'the confidence_threshold must also be specified',
+                )
+                raise RuntimeError(''.join(msg))
+            if not (0 <= confidence_threshold <= 1):
+                raise RuntimeError('confidence_threshold must be in [0, 1]')
+
+            msg = (
+                'when class_index is specified, ',
+                'the predictions given to update() will be softmax-normalized',
+            )
+            logger.warning(''.join(msg))
+            self.update_function = self.update_binary
+        else:
+            self.update_function = self.update_multiclass
+
         self._n_correct = 0
         self._n_sample = 0
+        self._class_index = class_index
+        self._confidence_threshold = confidence_threshold
 
-    def update(self, predictions, labels):
+    def update_binary(self, predictions, labels):
+        """
+        update function for binary accuracy computation
+        """
+        predictions = torch.softmax(predictions, -1)
+        predictions = (predictions[:, self._class_index] >= self._confidence_threshold).flatten().long()
+        # label is multi-class, need to convert to binary form
+        labels = (labels == self._class_index).flatten().long()
+        self._n_correct += (predictions == labels).sum().item()
+        self._n_sample += predictions.size(0)
+
+
+    def update_multiclass(self, predictions, labels):
         self._n_correct += (predictions.argmax(dim=-1) == labels).sum().item()
         self._n_sample += predictions.size(0)
+
+    def update(self, predictions, labels):
+        self.update_function(predictions, labels)
 
     def value(self):
         if self._n_sample > 0:
@@ -151,13 +188,40 @@ class Precision(Metric):
     """
     Precision
     """
-    def __init__(self, name='precision'):
+    def __init__(self, name='precision', class_index=None, confidence_threshold=None):
         super(Precision, self).__init__(name=name)
+
+        if class_index is not None:
+            if confidence_threshold is None:
+                msg = (
+                    'when class_index is specified, ',
+                    'the confidence_threshold must also be specified',
+                )
+                raise RuntimeError(''.join(msg))
+            if not (0 <= confidence_threshold <= 1):
+                raise RuntimeError('confidence_threshold must be in [0, 1]')
+
+            msg = (
+                'when class_index is specified, ',
+                'the predictions given to update() will be softmax-normalized',
+            )
+            logger.warning(''.join(msg))
+            self.update_function = self.update_binary
+            self.value_function = self.value_binary
+        else:
+            self.update_function = self.update_multiclass
+            self.value_function = self.value_multiclass
+
         self._stat = {}
         self._n_class = 0
         self._n_sample = 0
+        self._class_index = class_index
+        self._confidence_threshold = confidence_threshold
 
     def update(self, predictions, labels):
+        self.update_function(predictions, labels)
+
+    def update_multiclass(self, predictions, labels):
         if self._n_class == 0:
             # initialize for the 1st time calling update()
             self._n_class = predictions.size(1)
@@ -176,7 +240,38 @@ class Precision(Metric):
             self._stat[i]['false_pos'] += pred_pos_index.size - true_pos
             self._stat[i]['false_neg'] += false_neg
 
-    def value(self):
+
+    def update_binary(self, predictions, labels):
+        if self._n_class == 0:
+            # initialize for the 1st time calling update()
+            self._n_class = predictions.size(1)
+            if self._class_index >= self._n_class:
+                raise RuntimeError(
+                    'given class_index exceeds the number of class in predictions'
+                )
+            self._stat = {'true_pos': 0, 'false_pos': 0, 'false_neg': 0}
+
+        self._n_sample += predictions.size(0)
+        # handle predictions for binary case
+        predictions = torch.softmax(predictions, -1)
+        predictions = (predictions[:, self._class_index] >= self._confidence_threshold).flatten().long()
+        # handle labels for binary case
+        labels = (labels == self._class_index).flatten().long()
+
+        labels = labels.detach().cpu().numpy()
+        predictions = predictions.detach().cpu().numpy()
+
+        pred_pos_index = np.where(predictions == 1)[0]
+        pred_neg_index = np.where(predictions != 1)[0]
+        label_pos_index = np.where(labels == 1)[0]
+
+        true_pos = np.intersect1d(pred_pos_index, label_pos_index).size
+        false_neg = np.intersect1d(pred_neg_index, label_pos_index).size
+        self._stat['true_pos'] += true_pos
+        self._stat['false_pos'] += pred_pos_index.size - true_pos
+        self._stat['false_neg'] += false_neg
+
+    def value_multiclass(self):
         if self._n_sample > 0:
             values = []
             for i in range(self._n_class):
@@ -191,6 +286,22 @@ class Precision(Metric):
         else:
             return 0.0
 
+    def value_binary(self):
+        if self._n_sample > 0:
+            denominator = self._stat['true_pos'] + self._stat['false_pos']
+            if denominator == 0:
+                logger.warning(f'Zero in the denominator of precision')
+                return 0.0
+            else:
+                nominator = self._stat['true_pos']
+                return nominator / denominator
+        else:
+            return 0.0
+
+    def value(self):
+        return self.value_function()
+
+
     def reset(self):
         self._stat = {}
         self._n_class = 0
@@ -201,10 +312,14 @@ class Recall(Precision):
     """
     Recall
     """
-    def __init__(self, name='recall'):
-        super(Recall, self).__init__(name=name)
+    def __init__(self, name='recall', class_index=None, confidence_threshold=None):
+        super(Recall, self).__init__(
+            name=name,
+            class_index=class_index,
+            confidence_threshold=confidence_threshold
+        )
 
-    def value(self):
+    def value_multiclass(self):
         if self._n_sample > 0:
             values = []
             for i in range(self._n_class):
@@ -219,15 +334,31 @@ class Recall(Precision):
         else:
             return 0.0
 
+    def value_binary(self):
+        if self._n_sample > 0:
+            denominator = self._stat['true_pos'] + self._stat['false_neg']
+            if denominator == 0:
+                logger.warning(f'Zero in the denominator of recall')
+                return 0.0
+            else:
+                nominator = self._stat['true_pos']
+                return nominator / denominator
+        else:
+            return 0.0
+
 
 class F1(Precision):
     """
     F1 metric
     """
-    def __init__(self, name='f1'):
-        super(F1, self).__init__(name=name)
+    def __init__(self, name='f1', class_index=None, confidence_threshold=None):
+        super(F1, self).__init__(
+            name=name,
+            class_index=class_index,
+            confidence_threshold=confidence_threshold,
+        )
 
-    def value(self):
+    def value_multiclass(self):
         if self._n_sample > 0:
             values = []
             for i in range(self._n_class):
@@ -255,6 +386,35 @@ class F1(Precision):
                     values.append(2 * precision * recall / (precision + recall))
 
             return np.mean(values)
+        else:
+            return 0.0
+
+
+    def value_binary(self):
+        if self._n_sample > 0:
+            # compute recall
+            recall_denominator = self._stat['true_pos'] + self._stat['false_neg']
+            if recall_denominator == 0:
+                logger.warning(f'Zero in the denominator of recall')
+                recall = 0
+            else:
+                recall_nominator = self._stat['true_pos']
+                recall = recall_nominator / recall_denominator
+
+            # compute precision
+            precision_denominator = self._stat['true_pos'] + self._stat['false_pos']
+            if precision_denominator == 0:
+                logger.warning(f'Zero in the denominator of precision')
+                precision = 0
+            else:
+                precision_nominator = self._stat['true_pos']
+                precision = precision_nominator / precision_denominator
+
+            if abs(precision + recall) <= 1e-7:
+                return 0.0
+            else:
+                return 2 * precision * recall / (precision + recall)
+
         else:
             return 0.0
 
