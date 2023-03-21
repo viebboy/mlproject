@@ -289,7 +289,7 @@ class Trainer:
                 # if checkpoint frequency is None, then save checkpoint after
                 # ealuation
                 if self.checkpoint_freq is None:
-                    self.update_checkpoint(model, optimizer, True)
+                    self.update_checkpoint(model, optimizer, False)
                     # move back to device because exporting a model will move it
                     # back to cpu and put it in eval mode
                     model.to(device)
