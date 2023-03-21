@@ -286,6 +286,16 @@ class Trainer:
                 self.print_metrics(val_performance, 'val')
                 self.print_metrics(test_performance, 'test')
 
+                # if checkpoint frequency is None, then save checkpoint after
+                # ealuation
+                if self.checkpoint_freq is None:
+                    self.update_checkpoint(model, optimizer, True)
+                    # move back to device because exporting a model will move it
+                    # back to cpu and put it in eval mode
+                    model.to(device)
+                    model.train()
+
+
         # load the best model based on validation performance if exist, or train performance
         self.load_best(model)
 
@@ -623,7 +633,10 @@ class Trainer:
                 profile_counter = 0
 
             epoch_ended = self.minibatch_idx == self.total_minibatch
-            if (self.cur_minibatch % self.checkpoint_freq) == 0:
+            if (
+                self.checkpoint_freq is not None and
+                (self.cur_minibatch % self.checkpoint_freq) == 0
+            ):
                 # checkpoint every K minibatch
                 self.update_checkpoint(model, optimizer, epoch_ended)
                 # move back to device because exporting a model will move it
