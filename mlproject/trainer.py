@@ -458,8 +458,10 @@ class Trainer:
 
             if has_val and len(checkpoint['history']['val_' + self.monitor_metric]) > 0:
                 metric_value = checkpoint['history']['val_' + self.monitor_metric][-1]
-            else:
+            elif len(checkpoint['history']['train_' + self.monitor_metric]) > 0:
                 metric_value = checkpoint['history']['train_' + self.monitor_metric][-1]
+            else:
+                continue
 
             metric_value = self.get_metric_value(metric_value)
 
