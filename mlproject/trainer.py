@@ -434,13 +434,16 @@ class Trainer:
         # load the best model from checkpoints based on monitor_metric
         has_val = 'val_' + self.monitor_metric in self.history
 
-        if has_val and len(self.history['val_' + self.monitor_metric]) > 0:
-            best_value = self.history['val_' + self.monitor_metric][-1]
+        val_key = 'val_' + self.monitor_metric
+        train_key = 'train_' + self.monitor_metric
+
+        if has_val and val_key in self.history and len(self.history[val_key]) > 0:
+            best_value = self.history[val_key][-1]
             self.logger.info('loading the best checkpoint based on performance measured on validation data')
         else:
             self.logger.info('loading the best checkpoint based on performance measured on train data')
-            if len(self.history['train_' + self.monitor_metric]) > 0:
-                best_value = self.history['train_' + self.monitor_metric][-1]
+            if train_key in self.history and len(self.history[train_key]) > 0:
+                best_value = self.history[train_key][-1]
             else:
                 return
 
@@ -456,10 +459,10 @@ class Trainer:
             checkpoint = dill.load(fid)
             fid.close()
 
-            if has_val and len(checkpoint['history']['val_' + self.monitor_metric]) > 0:
-                metric_value = checkpoint['history']['val_' + self.monitor_metric][-1]
-            elif len(checkpoint['history']['train_' + self.monitor_metric]) > 0:
-                metric_value = checkpoint['history']['train_' + self.monitor_metric][-1]
+            if has_val and val_key in checkpoint['history'] and len(checkpoint['history'][val_key]) > 0:
+                metric_value = checkpoint['history'][val_key][-1]
+            elif train_key in checkpoint['history'] and len(checkpoint['history'][train_key]) > 0:
+                metric_value = checkpoint['history'][train_key][-1]
             else:
                 continue
 
