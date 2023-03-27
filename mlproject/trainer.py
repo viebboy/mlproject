@@ -438,8 +438,11 @@ class Trainer:
             best_value = self.history['val_' + self.monitor_metric][-1]
             self.logger.info('loading the best checkpoint based on performance measured on validation data')
         else:
-            best_value = self.history['train_' + self.monitor_metric][-1]
             self.logger.info('loading the best checkpoint based on performance measured on train data')
+            if len(self.history['train_' + self.monitor_metric]) > 0:
+                best_value = self.history['train_' + self.monitor_metric][-1]
+            else:
+                return
 
         best_value = self.get_metric_value(best_value)
         state_dict = model.state_dict()
