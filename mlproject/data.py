@@ -661,7 +661,7 @@ class PickleSafeCacheDataset(TorchDataset):
             logger.warning(
                 (
                     f'mismatched between total number of cached samples ({total_cached_samples}) ',
-                    f'and total number of samples in the input dataset ({len(dataset)})'
+                    f'and total number of samples in the input dataset ({self._nb_sample})'
                  )
             )
             return False
