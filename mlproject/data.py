@@ -125,7 +125,7 @@ class BinaryBlob(TorchDataset):
         if self._mode == 'write':
             raise RuntimeError('__getitem__ is not supported when BinaryBlob is opened in write mode')
 
-        if idx >= len(self):
+        if i >= len(self):
             raise RuntimeError(f'index {i} is out of range: [0 - {len(self)})')
         idx = self._sorted_indices[i]
         return self.read_index(idx)
