@@ -19,7 +19,7 @@ The example below demonstrate how to write data into a BinaryBlob and read it ba
 from mlproject.data import BinaryBlob
 import numpy as np
 
-blob = BinaryBob(
+blob = BinaryBlob(
     binary_file='random_data.binary', 
     index_file='random_data.idx', 
     mode='w',
@@ -36,7 +36,7 @@ for idx, sample in enumerate(data):
 blob.close()
 
 # now we open the blob and read data back
-recon_blob = BinaryBob(
+recon_blob = BinaryBlob(
     binary_file='random_data.binary', 
     index_file='random_data.idx', 
     mode='r', # remember to open in read mode, otherwise the data files will be deleted!
