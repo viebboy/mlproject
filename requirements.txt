@@ -13,3 +13,4 @@ torch
 torchvision
 thop
 pandas
+GitPython
