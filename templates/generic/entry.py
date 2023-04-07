@@ -113,9 +113,9 @@ def main(
 
         # -------- DATA ---------------------------------------
         if not config['use_async_loader']:
-            train_loader = get_loader(config, 'train')
-            val_loader = get_loader(config, 'val')
-            test_loader = get_loader(config, 'test')
+            train_loader = get_data_loader(config, 'train')
+            val_loader = get_data_loader(config, 'val')
+            test_loader = get_data_loader(config, 'test')
         else:
             train_loader = get_async_loader(config, 'train')
             val_loader = get_async_loader(config, 'val')
