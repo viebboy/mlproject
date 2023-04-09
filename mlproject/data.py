@@ -775,6 +775,9 @@ class ConcatDataset(TorchDataset):
             self._start_indices.append(start_index)
             start_index += len(dataset)
 
+        self._datasets = self._datasets[::-1]
+        self._start_indices = self._start_indices[::-1]
+
         self._total_samples = start_index
         self._cur_index = -1
 
@@ -793,11 +796,11 @@ class ConcatDataset(TorchDataset):
 
     def __getitem__(self, i: int):
         # go backward to find which dataset to use based on the start index
-        for dataset_idx, boundary in enumerate(self._start_indices[::-1]):
+        for dataset_idx, boundary in enumerate(self._start_indices):
             if i >= boundary:
                 break
         # remember to access dataset index backward
-        return self._datasets[-dataset_idx][i - boundary]
+        return self._datasets[dataset_idx][i - boundary]
 
 
 class ForwardValidationDataset:
