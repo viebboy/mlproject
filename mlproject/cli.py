@@ -404,10 +404,12 @@ def create_file(**kwargs):
 
     # 1st line
     file_headers = cut_string(f'{filename}: {description}', max_length=100)
+    max_len = max([len(x) for x in file_headers])
 
     header = [
         '"""',
         *file_headers,
+        '-' * max_len,
         '',
         '',
         '* Copyright: {} {}'.format(year, company),
@@ -643,6 +645,7 @@ def copy_py_file(src_file, dst_file, company, authors, license_title, project_na
     header = [
         '"""',
         file_header,
+        '-' * len(file_header),
         '',
         '',
         '* Copyright: {} {}'.format(year, company),
