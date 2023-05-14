@@ -476,7 +476,7 @@ class Trainer:
         model.load_state_dict(state_dict)
 
     def get_optimizer(self, model):
-        assert self.optimizer in ['adam', 'sgd', 'adamW'],\
+        assert self.optimizer in ['adam', 'sgd', 'adamW', 'rmsprop'],\
             'Given optimizer "{}" is not supported'.format(self.optimizer)
 
         # get current learning rate
@@ -499,6 +499,8 @@ class Trainer:
                 optimizer = optim.SGD(params, lr=lr, momentum=0.9, nesterov=True)
             elif self.optimizer == 'adamW':
                 optimizer = optim.AdamW(params, lr=lr)
+            elif self.optimizer == 'rmsprop':
+                optimizer = optim.RMSprop(params, lr=lr, weight_decay=self.weight_decay)
             else:
                 raise NotImplemented
         else:
@@ -512,6 +514,8 @@ class Trainer:
                                       nesterov=True)
             elif self.optimizer == 'adamW':
                 optimizer = optim.AdamW(model.parameters(), weight_decay=self.weight_decay, lr=lr)
+            elif self.optimizer == 'rmsprop':
+                optimizer = optim.RMSprop(model.parameters(), weight_decay=self.weight_decay, lr=lr)
             else:
                 raise NotImplemented
 
