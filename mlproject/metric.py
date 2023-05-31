@@ -25,8 +25,8 @@ import copy
 from loguru import logger
 
 
-_CrossEntropyLoss = torch.nn.CrossEntropyLoss()
-_MSELoss = torch.nn.MSELoss()
+_CrossEntropyLoss = torch.nn.CrossEntropyLoss(reduction='sum')
+_MSELoss = torch.nn.MSELoss(reduction='sum')
 
 
 class Metric(ABC):
@@ -105,7 +105,7 @@ class MAE(Metric):
         """
         self._total_value += torch.abs(
             predictions.flatten() - labels.flatten()
-        ).mean().item()
+        ).sum().item()
         self._n_sample += predictions.size(0)
 
     def value(self):
@@ -466,7 +466,7 @@ class MetricFromLoss(Metric):
         based on the current mini-batch's predictions and labels
         """
         self._total_value += self._loss_func(predictions, labels).item()
-        self._n_sample += 1
+        self._n_sample += predictions.size(0)
 
     def value(self):
         if self._n_sample > 0:
