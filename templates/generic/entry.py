@@ -117,9 +117,9 @@ def main(
             val_loader = get_data_loader(config, 'val')
             test_loader = get_data_loader(config, 'test')
         else:
-            train_loader = get_async_loader(config, 'train')
-            val_loader = get_async_loader(config, 'val')
-            test_loader = get_async_loader(config, 'test')
+            train_loader = get_async_data_loader(config, 'train')
+            val_loader = get_async_data_loader(config, 'val')
+            test_loader = get_async_data_loader(config, 'test')
 
         try:
             # -------------- MODEL --------------------------------
