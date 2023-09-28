@@ -35,11 +35,11 @@ from mlproject.constants import (
 
 
 @logger.catch
-def write_cache(dataset, start_idx: int, stop_idx:int, cache_file: dict):
-    bin_file = cache_file['binary_file']
-    idx_file = cache_file['index_file']
-    record = BinaryBlob(binary_file=bin_file, index_file=idx_file, mode='w')
-    if LOG_LEVEL == 'DEBUG':
+def write_cache(dataset, start_idx: int, stop_idx: int, cache_file: dict):
+    bin_file = cache_file["binary_file"]
+    idx_file = cache_file["index_file"]
+    record = BinaryBlob(binary_file=bin_file, index_file=idx_file, mode="w")
+    if LOG_LEVEL == "DEBUG":
         for i, idx in tqdm(enumerate(range(start_idx, stop_idx))):
             record.write_index(i, dataset[idx])
     else:
@@ -47,17 +47,19 @@ def write_cache(dataset, start_idx: int, stop_idx:int, cache_file: dict):
             record.write_index(i, dataset[idx])
 
     record.close()
-    logger.debug(f'complete writing cache file: {bin_file}')
+    logger.debug(f"complete writing cache file: {bin_file}")
 
 
 @logger.catch
-def write_cache_pickle_safe(dataset_class, dataset_params, start_idx: int, stop_idx:int, cache_file: dict):
+def write_cache_pickle_safe(
+    dataset_class, dataset_params, start_idx: int, stop_idx: int, cache_file: dict
+):
     dataset = dataset_class(**dataset_params)
 
-    bin_file = cache_file['binary_file']
-    idx_file = cache_file['index_file']
-    record = BinaryBlob(binary_file=bin_file, index_file=idx_file, mode='w')
-    if LOG_LEVEL == 'DEBUG':
+    bin_file = cache_file["binary_file"]
+    idx_file = cache_file["index_file"]
+    record = BinaryBlob(binary_file=bin_file, index_file=idx_file, mode="w")
+    if LOG_LEVEL == "DEBUG":
         for i, idx in tqdm(enumerate(range(start_idx, stop_idx))):
             record.write_index(i, dataset[idx])
     else:
@@ -65,34 +67,35 @@ def write_cache_pickle_safe(dataset_class, dataset_params, start_idx: int, stop_
             record.write_index(i, dataset[idx])
 
     record.close()
-    logger.debug(f'complete writing cache file: {bin_file}')
+    logger.debug(f"complete writing cache file: {bin_file}")
 
 
 class BinaryBlob(TorchDataset):
     """
     abstraction for binary blob storage
     """
-    def __init__(self, binary_file: str, index_file: str, mode='r'):
-        assert mode in ['r', 'w']
-        self._mode = 'write' if mode == 'w' else 'read'
 
-        if mode == 'w':
+    def __init__(self, binary_file: str, index_file: str, mode="r"):
+        assert mode in ["r", "w"]
+        self._mode = "write" if mode == "w" else "read"
+
+        if mode == "w":
             # writing mode
-            self._fid = open(binary_file, 'wb')
-            self._idx_fid = open(index_file, 'w')
+            self._fid = open(binary_file, "wb")
+            self._idx_fid = open(index_file, "w")
             self._indices = set()
         else:
             assert os.path.exists(binary_file)
             assert os.path.exists(index_file)
 
             # read index file
-            with open(index_file, 'r') as fid:
-                content = fid.read().split('\n')[:-1]
+            with open(index_file, "r") as fid:
+                content = fid.read().split("\n")[:-1]
 
             self._index_content = {}
             self._indices = set()
             for row in content:
-                sample_idx, byte_pos, byte_length, need_conversion = row.split(',')
+                sample_idx, byte_pos, byte_length, need_conversion = row.split(",")
                 self._index_content[int(sample_idx)] = (
                     int(byte_pos),
                     int(byte_length),
@@ -101,7 +104,7 @@ class BinaryBlob(TorchDataset):
                 self._indices.add(int(sample_idx))
 
             # open binary file
-            self._fid = open(binary_file, 'rb')
+            self._fid = open(binary_file, "rb")
             self._fid.seek(0, 0)
             self._idx_fid = None
 
@@ -122,17 +125,21 @@ class BinaryBlob(TorchDataset):
         raise StopIteration
 
     def __getitem__(self, i: int):
-        if self._mode == 'write':
-            raise RuntimeError('__getitem__ is not supported when BinaryBlob is opened in write mode')
+        if self._mode == "write":
+            raise RuntimeError(
+                "__getitem__ is not supported when BinaryBlob is opened in write mode"
+            )
 
         if i >= len(self):
-            raise RuntimeError(f'index {i} is out of range: [0 - {len(self)})')
+            raise RuntimeError(f"index {i} is out of range: [0 - {len(self)})")
         idx = self._sorted_indices[i]
         return self.read_index(idx)
 
     def __len__(self):
-        if self._mode == 'write':
-            raise RuntimeError('__len__ is not supported when BinaryBlob is opened in write mode')
+        if self._mode == "write":
+            raise RuntimeError(
+                "__len__ is not supported when BinaryBlob is opened in write mode"
+            )
         return len(self._sorted_indices)
 
     def __enter__(self):
@@ -143,12 +150,14 @@ class BinaryBlob(TorchDataset):
 
     def write_index(self, index: int, content):
         assert isinstance(index, int)
-        if self._mode == 'write':
+        if self._mode == "write":
             # allow writing
             try:
                 # check if index existence
                 if index in self._indices:
-                    raise RuntimeError(f'Given index={index} has been occuppied. Cannot write')
+                    raise RuntimeError(
+                        f"Given index={index} has been occuppied. Cannot write"
+                    )
 
                 # convert to byte string
                 if not isinstance(content, bytes):
@@ -164,7 +173,9 @@ class BinaryBlob(TorchDataset):
                 # write byte string
                 self._fid.write(content)
                 # write metadata information
-                self._idx_fid.write(f'{index},{current_pos},{len(content)},{converted}\n')
+                self._idx_fid.write(
+                    f"{index},{current_pos},{len(content)},{converted}\n"
+                )
 
                 # keep track of index
                 self._indices.add(index)
@@ -175,16 +186,18 @@ class BinaryBlob(TorchDataset):
         else:
             # raise error
             self.close()
-            raise RuntimeError('BinaryBlob was opened in reading mode. No writing allowed')
+            raise RuntimeError(
+                "BinaryBlob was opened in reading mode. No writing allowed"
+            )
 
     def read_index(self, index: int):
         assert isinstance(index, int)
         assert index >= 0
 
-        if self._mode == 'read':
+        if self._mode == "read":
             if index not in self._indices:
                 self.close()
-                raise RuntimeError(f'Given index={index} does not exist in BinaryBlob')
+                raise RuntimeError(f"Given index={index} does not exist in BinaryBlob")
 
             # pos is the starting position we need to seek
             target_pos, length, need_conversion = self._index_content[index]
@@ -201,7 +214,9 @@ class BinaryBlob(TorchDataset):
             return item
         else:
             self.close()
-            raise RuntimeError('BinaryBlob was opened in writing mode. No reading allowed')
+            raise RuntimeError(
+                "BinaryBlob was opened in writing mode. No reading allowed"
+            )
 
     def close(self):
         if self._fid is not None:
@@ -220,6 +235,7 @@ class CacheDataset(TorchDataset):
     To properly implement random augmentation, inheritance from this class should be used
     and random augmentation should be applied after calling __getitem__ of CacheDataset
     """
+
     def __init__(
         self,
         dataset,
@@ -228,9 +244,9 @@ class CacheDataset(TorchDataset):
     ):
         if not DISABLE_WARNING:
             msg = [
-                'CacheDataset will save samples generated from ',
-                f'the input dataset {dataset.__class__.__name__} to disk. '
-                f'Make sure that random augmentation is done after __getitem__ of CacheDataset'
+                "CacheDataset will save samples generated from ",
+                f"the input dataset {dataset.__class__.__name__} to disk. "
+                f"Make sure that random augmentation is done after __getitem__ of CacheDataset",
             ]
             for m in msg:
                 logger.warning(m)
@@ -261,18 +277,18 @@ class CacheDataset(TorchDataset):
         # matches with the lenght of input dataset
         total_cached_samples = 0
         for item in cache_files:
-            idx_file = item['index_file']
-            with open(idx_file, 'r') as fid:
-                total_cached_samples += len(fid.read().split('\n')[:-1])
+            idx_file = item["index_file"]
+            with open(idx_file, "r") as fid:
+                total_cached_samples += len(fid.read().split("\n")[:-1])
 
         if total_cached_samples == len(dataset):
             return True
         else:
             logger.warning(
                 (
-                    f'mismatched between total number of cached samples ({total_cached_samples}) ',
-                    f'and total number of samples in the input dataset ({len(dataset)})'
-                 )
+                    f"mismatched between total number of cached samples ({total_cached_samples}) ",
+                    f"and total number of samples in the input dataset ({len(dataset)})",
+                )
             )
             return False
 
@@ -295,12 +311,12 @@ class CacheDataset(TorchDataset):
         cache_files = []
         exist = True
         for i in range(nb_shard):
-            bin_file = cache_prefix + '{:09d}.bin'.format(i)
-            idx_file = cache_prefix + '{:09d}.idx'.format(i)
+            bin_file = cache_prefix + "{:09d}.bin".format(i)
+            idx_file = cache_prefix + "{:09d}.idx".format(i)
             cache_files.append(
                 {
-                    'binary_file': bin_file,
-                    'index_file': idx_file,
+                    "binary_file": bin_file,
+                    "index_file": idx_file,
                 }
             )
             if exist and not os.path.exists(bin_file):
@@ -311,33 +327,27 @@ class CacheDataset(TorchDataset):
 
         return cache_files, exist
 
-
     def _read_cache(self, cache_prefix, nb_shard):
         cache_files, _ = self._get_cache_files(cache_prefix, nb_shard)
         self._records = []
         self._indices = []
 
         for f_idx, cache_file in enumerate(cache_files):
-            bin_file = cache_file['binary_file']
-            idx_file = cache_file['index_file']
+            bin_file = cache_file["binary_file"]
+            idx_file = cache_file["index_file"]
             self._records.append(
-                BinaryBlob(
-                    binary_file=bin_file,
-                    index_file=idx_file,
-                    mode='r'
-                )
+                BinaryBlob(binary_file=bin_file, index_file=idx_file, mode="r")
             )
 
             # find the number of samples
-            with open(idx_file, 'r') as fid:
-                indices = fid.read().split('\n')[:-1]
+            with open(idx_file, "r") as fid:
+                indices = fid.read().split("\n")[:-1]
 
             # create index to retrieve item
             for i in range(len(indices)):
                 self._indices.append((f_idx, i))
 
-        logger.info('complete reading cache files')
-
+        logger.info("complete reading cache files")
 
     def _write_cache(self, dataset, cache_prefix, nb_shard):
         nb_sample = len(dataset)
@@ -353,7 +363,7 @@ class CacheDataset(TorchDataset):
         cache_files, _ = self._get_cache_files(cache_prefix, nb_shard)
 
         try:
-            joblib.Parallel(n_jobs=NB_PARALLEL_JOBS, backend='loky')(
+            joblib.Parallel(n_jobs=NB_PARALLEL_JOBS, backend="loky")(
                 joblib.delayed(write_cache)(
                     dataset,
                     start_idx,
@@ -367,10 +377,12 @@ class CacheDataset(TorchDataset):
                 )
             )
         except Exception:
-            for start_idx, stop_idx, cache_file in zip(start_indices, stop_indices, cache_files):
+            for start_idx, stop_idx, cache_file in zip(
+                start_indices, stop_indices, cache_files
+            ):
                 write_cache(dataset, start_idx, stop_idx, cache_file)
 
-        logger.info('complete writing cache files')
+        logger.info("complete writing cache files")
 
 
 class CacheIterator(TorchDataset):
@@ -378,13 +390,13 @@ class CacheIterator(TorchDataset):
     Wrapper to cache a given iterator in BinaryBlob formats
     This will save samples generated from input iterator to disk
     """
+
     def __init__(
         self,
         iterator,
         cache_prefix: str,
         nb_shard: 32,
     ):
-
         # write blob files if needed
         if not self._has_cache(cache_prefix, nb_shard):
             self._write_cache(iterator, cache_prefix, nb_shard)
@@ -425,12 +437,12 @@ class CacheIterator(TorchDataset):
         cache_files = []
         exist = True
         for i in range(nb_shard):
-            bin_file = cache_prefix + '{:09d}.bin'.format(i)
-            idx_file = cache_prefix + '{:09d}.idx'.format(i)
+            bin_file = cache_prefix + "{:09d}.bin".format(i)
+            idx_file = cache_prefix + "{:09d}.idx".format(i)
             cache_files.append(
                 {
-                    'binary_file': bin_file,
-                    'index_file': idx_file,
+                    "binary_file": bin_file,
+                    "index_file": idx_file,
                 }
             )
             if exist and not os.path.exists(bin_file):
@@ -441,37 +453,34 @@ class CacheIterator(TorchDataset):
 
         return cache_files, exist
 
-
     def _read_cache(self, cache_prefix, nb_shard):
         cache_files, _ = self._get_cache_files(cache_prefix, nb_shard)
         self._records = []
         self.nb_sample = 0
 
         for f_idx, cache_file in enumerate(cache_files):
-            bin_file = cache_file['binary_file']
-            idx_file = cache_file['index_file']
+            bin_file = cache_file["binary_file"]
+            idx_file = cache_file["index_file"]
             self._records.append(
-                BinaryBlob(
-                    binary_file=bin_file,
-                    index_file=idx_file,
-                    mode='r'
-                )
+                BinaryBlob(binary_file=bin_file, index_file=idx_file, mode="r")
             )
 
             # find the number of samples
-            with open(idx_file, 'r') as fid:
-                indices = fid.read().split('\n')[:-1]
+            with open(idx_file, "r") as fid:
+                indices = fid.read().split("\n")[:-1]
             self.nb_sample += len(indices)
 
-        logger.info('complete reading cache files')
-
+        logger.info("complete reading cache files")
 
     def _write_cache(self, iterator, cache_prefix, nb_shard):
         cache_files, _ = self._get_cache_files(cache_prefix, nb_shard)
-        records = [BinaryBlob(cache_file['binary_file'], cache_file['index_file'], 'w') for cache_file in cache_files]
+        records = [
+            BinaryBlob(cache_file["binary_file"], cache_file["index_file"], "w")
+            for cache_file in cache_files
+        ]
         count = 0
 
-        if LOG_LEVEL == 'DEBUG':
+        if LOG_LEVEL == "DEBUG":
             loop = tqdm(iterator)
         else:
             loop = iterator
@@ -484,7 +493,7 @@ class CacheIterator(TorchDataset):
         for record in records:
             record.close()
 
-        logger.info('complete writing cache files')
+        logger.info("complete writing cache files")
 
 
 class PickleSafeCacheIterator(TorchDataset):
@@ -492,6 +501,7 @@ class PickleSafeCacheIterator(TorchDataset):
     Alternative version of CacheIterator that receives iterator class name and params separately
     This is supposed to be used with those iterators that cannot be pickled
     """
+
     def __init__(
         self,
         iterator_class,
@@ -539,12 +549,12 @@ class PickleSafeCacheIterator(TorchDataset):
         cache_files = []
         exist = True
         for i in range(nb_shard):
-            bin_file = cache_prefix + '{:09d}.bin'.format(i)
-            idx_file = cache_prefix + '{:09d}.idx'.format(i)
+            bin_file = cache_prefix + "{:09d}.bin".format(i)
+            idx_file = cache_prefix + "{:09d}.idx".format(i)
             cache_files.append(
                 {
-                    'binary_file': bin_file,
-                    'index_file': idx_file,
+                    "binary_file": bin_file,
+                    "index_file": idx_file,
                 }
             )
             if exist and not os.path.exists(bin_file):
@@ -555,39 +565,36 @@ class PickleSafeCacheIterator(TorchDataset):
 
         return cache_files, exist
 
-
     def _read_cache(self, cache_prefix, nb_shard):
         cache_files, _ = self._get_cache_files(cache_prefix, nb_shard)
         self._records = []
         self.nb_sample = 0
 
         for f_idx, cache_file in enumerate(cache_files):
-            bin_file = cache_file['binary_file']
-            idx_file = cache_file['index_file']
+            bin_file = cache_file["binary_file"]
+            idx_file = cache_file["index_file"]
             self._records.append(
-                BinaryBlob(
-                    binary_file=bin_file,
-                    index_file=idx_file,
-                    mode='r'
-                )
+                BinaryBlob(binary_file=bin_file, index_file=idx_file, mode="r")
             )
 
             # find the number of samples
-            with open(idx_file, 'r') as fid:
-                indices = fid.read().split('\n')[:-1]
+            with open(idx_file, "r") as fid:
+                indices = fid.read().split("\n")[:-1]
             self.nb_sample += len(indices)
 
-        logger.info('complete reading cache files')
-
+        logger.info("complete reading cache files")
 
     def _write_cache(self, iterator_class, iterator_params, cache_prefix, nb_shard):
         iterator = iterator_class(iterator_params)
 
         cache_files, _ = self._get_cache_files(cache_prefix, nb_shard)
-        records = [BinaryBlob(cache_file['binary_file'], cache_file['index_file'], 'w') for cache_file in cache_files]
+        records = [
+            BinaryBlob(cache_file["binary_file"], cache_file["index_file"], "w")
+            for cache_file in cache_files
+        ]
         count = 0
 
-        if LOG_LEVEL == 'DEBUG':
+        if LOG_LEVEL == "DEBUG":
             loop = tqdm(iterator)
         else:
             loop = iterator
@@ -600,25 +607,28 @@ class PickleSafeCacheIterator(TorchDataset):
         for record in records:
             record.close()
 
-        logger.info('complete writing cache files')
+        logger.info("complete writing cache files")
+
 
 class PickleSafeCacheDataset(TorchDataset):
     """
     Alternative version of CacheDataset that receives dataset class name and params separately
     This is supposed to be used with those dataset objects that cannot be pickled
     """
+
     def __init__(
         self,
         dataset_class,
         dataset_params,
         cache_prefix: str,
         nb_shard: 32,
+        check_cache=True,
     ):
         if not DISABLE_WARNING:
             msg = [
-                'CacheDataset will save samples generated from ',
-                f'the input dataset {dataset_class} to disk. '
-                f'Make sure that random augmentation is done after __getitem__ of CacheDataset'
+                "CacheDataset will save samples generated from ",
+                f"the input dataset {dataset_class} to disk. "
+                f"Make sure that random augmentation is done after __getitem__ of CacheDataset",
             ]
             for m in msg:
                 logger.warning(m)
@@ -629,6 +639,7 @@ class PickleSafeCacheDataset(TorchDataset):
 
         self._read_cache(cache_prefix, nb_shard)
         self._cur_index = -1
+        self._check_cache = check_cache
 
     def __iter__(self):
         self._cur_index = -1
@@ -640,31 +651,37 @@ class PickleSafeCacheDataset(TorchDataset):
             return self.__getitem__(self._cur_index)
         raise StopIteration
 
-    def _has_cache(self, dataset_class, dataset_params, cache_prefix: str, nb_shard: int):
-        self._nb_sample = len(dataset_class(**dataset_params))
+    def _has_cache(
+        self, dataset_class, dataset_params, cache_prefix: str, nb_shard: int
+    ):
+        if self._check_cache:
+            self._nb_sample = len(dataset_class(**dataset_params))
 
         cache_files, exist = self._get_cache_files(cache_prefix, nb_shard)
         if not exist:
             return False
 
-        # even if we have cached files, we should check if the cached length
-        # matches with the lenght of input dataset
-        total_cached_samples = 0
-        for item in cache_files:
-            idx_file = item['index_file']
-            with open(idx_file, 'r') as fid:
-                total_cached_samples += len(fid.read().split('\n')[:-1])
+        if self._check_cache:
+            # even if we have cached files, we should check if the cached length
+            # matches with the lenght of input dataset
+            total_cached_samples = 0
+            for item in cache_files:
+                idx_file = item["index_file"]
+                with open(idx_file, "r") as fid:
+                    total_cached_samples += len(fid.read().split("\n")[:-1])
 
-        if total_cached_samples == self._nb_sample:
-            return True
+            if total_cached_samples == self._nb_sample:
+                return True
+            else:
+                logger.warning(
+                    (
+                        f"mismatched between total number of cached samples ({total_cached_samples}) ",
+                        f"and total number of samples in the input dataset ({self._nb_sample})",
+                    )
+                )
+                return False
         else:
-            logger.warning(
-                (
-                    f'mismatched between total number of cached samples ({total_cached_samples}) ',
-                    f'and total number of samples in the input dataset ({self._nb_sample})'
-                 )
-            )
-            return False
+            return True
 
     def __getitem__(self, i: int):
         record_idx, item_idx = self._indices[i]
@@ -685,12 +702,12 @@ class PickleSafeCacheDataset(TorchDataset):
         cache_files = []
         exist = True
         for i in range(nb_shard):
-            bin_file = cache_prefix + '{:09d}.bin'.format(i)
-            idx_file = cache_prefix + '{:09d}.idx'.format(i)
+            bin_file = cache_prefix + "{:09d}.bin".format(i)
+            idx_file = cache_prefix + "{:09d}.idx".format(i)
             cache_files.append(
                 {
-                    'binary_file': bin_file,
-                    'index_file': idx_file,
+                    "binary_file": bin_file,
+                    "index_file": idx_file,
                 }
             )
             if exist and not os.path.exists(bin_file):
@@ -701,36 +718,29 @@ class PickleSafeCacheDataset(TorchDataset):
 
         return cache_files, exist
 
-
     def _read_cache(self, cache_prefix, nb_shard):
         cache_files, _ = self._get_cache_files(cache_prefix, nb_shard)
         self._records = []
         self._indices = []
 
         for f_idx, cache_file in enumerate(cache_files):
-            bin_file = cache_file['binary_file']
-            idx_file = cache_file['index_file']
+            bin_file = cache_file["binary_file"]
+            idx_file = cache_file["index_file"]
             self._records.append(
-                BinaryBlob(
-                    binary_file=bin_file,
-                    index_file=idx_file,
-                    mode='r'
-                )
+                BinaryBlob(binary_file=bin_file, index_file=idx_file, mode="r")
             )
 
             # find the number of samples
-            with open(idx_file, 'r') as fid:
-                indices = fid.read().split('\n')[:-1]
+            with open(idx_file, "r") as fid:
+                indices = fid.read().split("\n")[:-1]
 
             # create index to retrieve item
             for i in range(len(indices)):
                 self._indices.append((f_idx, i))
 
-        logger.info('complete reading cache files')
-
+        logger.info("complete reading cache files")
 
     def _write_cache(self, dataset_class, dataset_params, cache_prefix, nb_shard):
-
         # now split into different shards to perform parallel write
         start_indices, stop_indices = [], []
         shard_size = int(np.ceil(self._nb_sample / nb_shard))
@@ -741,7 +751,7 @@ class PickleSafeCacheDataset(TorchDataset):
 
         cache_files, _ = self._get_cache_files(cache_prefix, nb_shard)
 
-        joblib.Parallel(n_jobs=NB_PARALLEL_JOBS, backend='loky')(
+        joblib.Parallel(n_jobs=NB_PARALLEL_JOBS, backend="loky")(
             joblib.delayed(write_cache_pickle_safe)(
                 dataset_class,
                 dataset_params,
@@ -756,21 +766,22 @@ class PickleSafeCacheDataset(TorchDataset):
             )
         )
 
-        logger.info('complete writing cache files')
+        logger.info("complete writing cache files")
 
 
 class ConcatDataset(TorchDataset):
     """
     Wrapper to concatenate many dataset objects
     """
+
     def __init__(self, *datasets):
         self._datasets = []
         self._start_indices = []
 
         start_index = 0
         for dataset in datasets:
-            assert hasattr(dataset, '__getitem__')
-            assert hasattr(dataset, '__len__')
+            assert hasattr(dataset, "__getitem__")
+            assert hasattr(dataset, "__len__")
             self._datasets.append(dataset)
             self._start_indices.append(start_index)
             start_index += len(dataset)
@@ -807,14 +818,15 @@ class ForwardValidationDataset:
     """
     Dataset wrapper that splits a time-series dataset for forward-validation
     """
+
     def __init__(self, dataset, nb_fold, nb_test_fold, test_fold_index, prefix):
         assert nb_test_fold < nb_fold
         assert test_fold_index < nb_test_fold
-        assert prefix in ['train', 'test']
+        assert prefix in ["train", "test"]
 
         total_len = len(dataset)
         fold_size = int(np.ceil(total_len / nb_fold))
-        if prefix == 'train':
+        if prefix == "train":
             self.start_index = 0
             self.stop_index = (nb_fold - nb_test_fold + test_fold_index) * fold_size
         else:
@@ -849,7 +861,7 @@ class PickleSafeForwardValidationDataset(ForwardValidationDataset):
         nb_fold,
         nb_test_fold,
         test_fold_index,
-        prefix
+        prefix,
     ):
         dataset = dataset_class(**dataset_params)
         super().__init__(dataset, nb_fold, nb_test_fold, test_fold_index, prefix)
@@ -865,7 +877,7 @@ class ClassificationSampler:
         for lb in class_indices:
             assert lb in class_percentage
             total += class_percentage[lb]
-        assert total == 1, 'the total percentage of all classes must be 1'
+        assert total == 1, "the total percentage of all classes must be 1"
 
         # compute the target length for each class
         target_len = self._compute_target_length(class_percentage, len(dataset))
@@ -894,7 +906,9 @@ class ClassificationSampler:
             else:
                 lb = label_getter(dataset[i])
             if lb not in class_indices:
-                class_indices[lb] = [i,]
+                class_indices[lb] = [
+                    i,
+                ]
             else:
                 class_indices[lb].append(i)
 
@@ -914,14 +928,14 @@ class ClassificationSampler:
         for lb, value in target_len.items():
             if value <= 0:
                 raise RuntimeError(
-                    f'the given class_percentage results in class {lb} having {value} samples'
+                    f"the given class_percentage results in class {lb} having {value} samples"
                 )
 
         return target_len
 
     def _sampling(self):
-        logger.debug('compute sampling strategy')
-        if not hasattr(self, '_sampler'):
+        logger.debug("compute sampling strategy")
+        if not hasattr(self, "_sampler"):
             self._sampler = {lb: [] for lb in self._target_len}
 
         sampler = {}
@@ -944,13 +958,19 @@ class ClassificationSampler:
                 # target length is less than actual length
                 # need to perform sampling
                 old_indices = set(self._sampler[lb])
-                leftover_indices = [i for i in self._class_indices[lb] if i not in old_indices]
+                leftover_indices = [
+                    i for i in self._class_indices[lb] if i not in old_indices
+                ]
                 if len(leftover_indices) >= target_size:
                     sampler[lb] = random.sample(leftover_indices, target_size)
                 else:
                     sampler[lb] = leftover_indices
                     # sampling from the old list
-                    sampler[lb].extend(random.sample(self._sampler[lb], target_size - len(leftover_indices)))
+                    sampler[lb].extend(
+                        random.sample(
+                            self._sampler[lb], target_size - len(leftover_indices)
+                        )
+                    )
 
         self._sampler = sampler
         self._index_map = []
@@ -1000,6 +1020,8 @@ class ClassificationSampler:
 
 
 class PickleSafeClassificationSampler(ClassificationSampler):
-    def __init__(self, dataset_class, dataset_params, class_percentage, label_getter=None):
+    def __init__(
+        self, dataset_class, dataset_params, class_percentage, label_getter=None
+    ):
         dataset = dataset_class(**dataset_params)
         super().__init__(dataset, class_percentage, label_getter)
