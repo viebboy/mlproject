@@ -624,6 +624,7 @@ class PickleSafeCacheDataset(TorchDataset):
         nb_shard: 32,
         check_cache=True,
     ):
+        self._check_cache = check_cache
         if not DISABLE_WARNING:
             msg = [
                 "CacheDataset will save samples generated from ",
@@ -639,7 +640,6 @@ class PickleSafeCacheDataset(TorchDataset):
 
         self._read_cache(cache_prefix, nb_shard)
         self._cur_index = -1
-        self._check_cache = check_cache
 
     def __iter__(self):
         self._cur_index = -1
