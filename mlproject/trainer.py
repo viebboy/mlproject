@@ -588,7 +588,11 @@ class Trainer:
 
         start_stamp = time.time()
 
+        epoch_ended = False
         for inputs, labels in data['dataloader']:
+            if epoch_ended:
+                break
+
             pre_gpu_stamp = time.time()
 
             if self.move_data_to_device:
