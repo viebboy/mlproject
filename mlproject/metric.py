@@ -64,28 +64,29 @@ class MSE(Metric):
     def __init__(self, name='mse'):
         super(MSE, self).__init__(name=name)
         self._total_value = 0
-        self._n_minibatch = 0
+        self._n_sample = 0
 
     def update(self, predictions, labels):
         """
         Update the value of mean squared error
         based on the current mini-batch's predictions and labels
         """
-        self._total_value += _MSELoss(predictions, labels).item()
-        self._n_minibatch += 1
+        n_sample = labels.shape[0]
+        self._total_value += _MSELoss(predictions, labels).item() * n_sample
+        self._n_sample += n_sample
 
     def value(self):
         """
         Return the MSE value
         """
-        if self._n_minibatch > 0:
-            return self._total_value / self._n_minibatch
+        if self._n_sample > 0:
+            return self._total_value / self._n_sample
         else:
             return 0.0
 
     def reset(self):
         self._total_value = 0
-        self._n_minibatch = 0
+        self._n_sample = 0
 
 
 class MAE(Metric):
@@ -96,30 +97,31 @@ class MAE(Metric):
     def __init__(self, name='mae'):
         super(MAE, self).__init__(name=name)
         self._total_value = 0
-        self._n_minibatch = 0
+        self._n_sample = 0
 
     def update(self, predictions, labels):
         """
         Update the value of mean absolute error
         based on the current mini-batch's predictions and labels
         """
+        n_sample = labels.shape[0]
         self._total_value += torch.abs(
             predictions.flatten() - labels.flatten()
-        ).mean().item()
-        self._n_minibatch += 1
+        ).sum().item()
+        self._n_sample += n_sample
 
     def value(self):
         """
         Return the MAE value
         """
-        if self._n_minibatch > 0:
-            return self._total_value / self._n_minibatch
+        if self._n_sample > 0:
+            return self._total_value / self._n_sample
         else:
             return 0.0
 
     def reset(self):
         self._total_value = 0
-        self._n_minibatch = 0
+        self._n_sample = 0
 
 
 class Accuracy(Metric):
@@ -426,7 +428,7 @@ class CrossEntropy(Metric):
     def __init__(self, name='cross_entropy'):
         super(CrossEntropy, self).__init__(name=name)
         self._total_value = 0
-        self._n_minibatch = 0
+        self._n_sample = 0
 
     def update(self, predictions, labels):
         """
@@ -436,18 +438,20 @@ class CrossEntropy(Metric):
         if labels.size() == (1, 1):
             # note that (1, 1) label shape for CE should be (1,) only
             labels = labels.squeeze(0)
-        self._total_value += _CrossEntropyLoss(predictions, labels).item()
-        self._n_minibatch += 1
+
+        n_sample = labels.shape[0]
+        self._total_value += _CrossEntropyLoss(predictions, labels).item() * n_sample
+        self._n_sample += n_sample
 
     def value(self):
-        if self._n_minibatch > 0:
-            return self._total_value / self._n_minibatch
+        if self._n_sample > 0:
+            return self._total_value / self._n_sample
         else:
             return 0.0
 
     def reset(self):
         self._total_value = 0
-        self._n_minibatch = 0
+        self._n_sample = 0
 
 
 class MetricFromLoss(Metric):
@@ -458,25 +462,26 @@ class MetricFromLoss(Metric):
         super(MetricFromLoss, self).__init__(name=name)
         self._loss_func = loss_func
         self._total_value = 0
-        self._n_minibatch = 0
+        self._n_sample = 0
 
     def update(self, predictions, labels):
         """
         Update the value of mean absolute error
         based on the current mini-batch's predictions and labels
         """
-        self._total_value += self._loss_func(predictions, labels).item()
-        self._n_minibatch += 1
+        n_sample = labels.shape[0]
+        self._total_value += self._loss_func(predictions, labels).item() * n_sample
+        self._n_sample += n_sample
 
     def value(self):
-        if self._n_minibatch > 0:
-            return self._total_value / self._n_minibatch
+        if self._n_sample > 0:
+            return self._total_value / self._n_sample
         else:
             return 0.0
 
     def reset(self):
         self._total_value = 0
-        self._n_minibatch = 0
+        self._n_sample = 0
 
 
 class NestedMetric(Metric):
