@@ -61,17 +61,21 @@ class MSE(Metric):
     Mean Squared Error metric
     """
 
-    def __init__(self, name='mse'):
+    def __init__(self, name='mse', batch_axis=0):
         super(MSE, self).__init__(name=name)
         self._total_value = 0
         self._n_sample = 0
+        self._batch_axis = batch_axis
+
+        logger.warning(f"{self.__class__.__name__} initialized. Assuming batch axis is {self._batch_axis}."
+                        "Ensure your data is shaped accordingly.")
 
     def update(self, predictions, labels):
         """
         Update the value of mean squared error
         based on the current mini-batch's predictions and labels
         """
-        n_sample = labels.shape[0]
+        n_sample = labels.shape[self._batch_axis]
         self._total_value += _MSELoss(predictions, labels).item() * n_sample
         self._n_sample += n_sample
 
@@ -94,17 +98,21 @@ class MAE(Metric):
     Mean Absolute Error metric
     """
 
-    def __init__(self, name='mae'):
+    def __init__(self, name='mae', batch_axis=0):
         super(MAE, self).__init__(name=name)
         self._total_value = 0
         self._n_sample = 0
+        self._batch_axis = batch_axis
+
+        logger.warning(f"{self.__class__.__name__} initialized. Assuming batch axis is {self._batch_axis}."
+                        "Ensure your data is shaped accordingly.")
 
     def update(self, predictions, labels):
         """
         Update the value of mean absolute error
         based on the current mini-batch's predictions and labels
         """
-        n_sample = labels.shape[0]
+        n_sample = labels.shape[self._batch_axis]
         self._total_value += torch.abs(
             predictions.flatten() - labels.flatten()
         ).sum().item()
@@ -425,10 +433,14 @@ class CrossEntropy(Metric):
     """
     Cross Entropy
     """
-    def __init__(self, name='cross_entropy'):
+    def __init__(self, name='cross_entropy', batch_axis=0):
         super(CrossEntropy, self).__init__(name=name)
         self._total_value = 0
         self._n_sample = 0
+        self._batch_axis = batch_axis
+
+        logger.warning(f"{self.__class__.__name__} initialized. Assuming batch axis is {self._batch_axis}."
+                        "Ensure your data is shaped accordingly.")
 
     def update(self, predictions, labels):
         """
@@ -439,7 +451,7 @@ class CrossEntropy(Metric):
             # note that (1, 1) label shape for CE should be (1,) only
             labels = labels.squeeze(0)
 
-        n_sample = labels.shape[0]
+        n_sample = labels.shape[self._batch_axis]
         self._total_value += _CrossEntropyLoss(predictions, labels).item() * n_sample
         self._n_sample += n_sample
 
@@ -458,18 +470,22 @@ class MetricFromLoss(Metric):
     """
     Metric class for the corresponding loss function
     """
-    def __init__(self, name, loss_func):
+    def __init__(self, name, loss_func, batch_axis=0):
         super(MetricFromLoss, self).__init__(name=name)
         self._loss_func = loss_func
         self._total_value = 0
         self._n_sample = 0
+        self._batch_axis = batch_axis
+
+        logger.warning(f"{self.__class__.__name__} initialized. Assuming batch axis is {self._batch_axis}."
+                "Ensure your data is shaped accordingly.")
 
     def update(self, predictions, labels):
         """
         Update the value of mean absolute error
         based on the current mini-batch's predictions and labels
         """
-        n_sample = labels.shape[0]
+        n_sample = labels.shape[self._batch_axis]
         self._total_value += self._loss_func(predictions, labels).item() * n_sample
         self._n_sample += n_sample
 
