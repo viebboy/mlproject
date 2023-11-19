@@ -17,6 +17,9 @@ Apache 2.0 License
 
 """
 
+
+from __future__ import annotations
+from typing import Union
 import torch
 import torch.optim as optim
 import lightning
@@ -112,8 +115,19 @@ class Trainer:
     FABRIC = None
 
     @classmethod
-    def setup(cls):
-        cls.FABRIC = lightning.Fabric()
+    def setup(
+        cls,
+        accelerator: str = "auto",
+        devices: Union[list[int], str, int] = "auto",
+        num_nodes: int = 1,
+        precision=None,
+    ):
+        cls.FABRIC = lightning.Fabric(
+            accelerator=accelerator,
+            devices=devices,
+            num_nodes=num_nodes,
+            precision=precision,
+        )
 
     def __init__(
         self,

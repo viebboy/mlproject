@@ -124,7 +124,9 @@ def main(
 
             # -------------------------------------------------------
 
-            trainer = get_trainer(config_file, config, config_name, config_index)
+            trainer = get_trainer(
+                config_file, config, config_name, config_index, device
+            )
             trainer.fit(
                 model,
                 {"dataloader": train_loader},
@@ -146,10 +148,6 @@ if __name__ == "__main__":
     config_values, config_name, config_description = load_config(
         args.config_path, args.index, args.test_mode
     )
-    if args.device == "cuda":
-        device = torch.device("cuda")
-    else:
-        device = torch.device("cpu")
 
     main(
         args.config_path,
@@ -157,5 +155,5 @@ if __name__ == "__main__":
         config_description,
         config_values,
         args.index,
-        device=device,
+        device=args.device,
     )

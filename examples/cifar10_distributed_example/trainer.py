@@ -51,7 +51,13 @@ from mlproject.config import get_config_string
 # we only need to fillin the get_trainer() function
 
 
-def get_trainer(config_file: str, config: dict, config_name: str, config_index: int):
+def get_trainer(
+    config_file: str,
+    config: dict,
+    config_name: str,
+    config_index: int,
+    accelerator: str,
+):
     """
     Returns trainer object
     parameters:
@@ -114,7 +120,7 @@ def get_trainer(config_file: str, config: dict, config_name: str, config_index: 
         raise NotImplementedError()
 
     # need to call setup 1st to prepare environment for distributed training
-    BaseTrainer.setup()
+    BaseTrainer.setup(accelerator=accelerator)
     # we use the standard trainer implementation from the library
     trainer = BaseTrainer(
         n_epoch=config["n_epoch"],
