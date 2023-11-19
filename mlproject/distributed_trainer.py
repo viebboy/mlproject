@@ -241,9 +241,7 @@ class Trainer:
         if not isinstance(data, dict) or "dataloader" not in data:
             raise RuntimeError(msg)
 
-    def prepare_data(
-        self, train_data: dict, val_data: dict, test_data: dict
-    ):
+    def prepare_data(self, train_data: dict, val_data: dict, test_data: dict):
         """
         Setup for distributed training
         """
@@ -692,7 +690,8 @@ class Trainer:
                 serialized_values = {}
                 for field in fields:
                     serialized_values[field] = values[field][i]
-                instances.append(metric_obj.load(serialized_values))
+                metric_obj.load(serialized_values)
+                instances.append(metric_obj)
 
             # reset the metric object
             m.reset()
