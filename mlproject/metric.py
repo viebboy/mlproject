@@ -21,7 +21,6 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 import torch
 import numpy as np
-import copy
 from loguru import logger
 
 
@@ -33,27 +32,43 @@ class Metric(ABC):
     """
     Base metric class that provides an interface for all metric implementation
     """
+
     def __init__(self, name, **kwargs):
         self.metric_name = name
         pass
 
     @abstractmethod
     def update(self, predictions, labels):
-        logger.warning('update() not implemented')
+        logger.warning("update() not implemented")
         pass
 
     @abstractmethod
     def value(self):
-        logger.warning('value() not implemented')
+        logger.warning("value() not implemented")
         pass
 
     @abstractmethod
     def reset(self):
-        logger.warning('reset() not implemented')
+        logger.warning("reset() not implemented")
         pass
 
     def name(self):
         return self.metric_name
+
+    def load(self) -> None:
+        raise NotImplementedError(
+            "load() not implemented, need to subclass & implement this method"
+        )
+
+    def dump(self) -> dict:
+        raise NotImplementedError(
+            "dump() not implemented, need to subclass & implement this method"
+        )
+
+    def merge(self, *others):
+        raise NotImplementedError(
+            "merge() not implemented, need to subclass & implement this method"
+        )
 
 
 class MSE(Metric):
@@ -61,14 +76,23 @@ class MSE(Metric):
     Mean Squared Error metric
     """
 
-    def __init__(self, name='mse', batch_axis=0):
+    def __init__(self, name="mse", batch_axis=0):
         super(MSE, self).__init__(name=name)
         self._total_value = 0
         self._n_sample = 0
         self._batch_axis = batch_axis
 
-        logger.warning(f"{self.__class__.__name__} initialized. Assuming batch axis is {self._batch_axis}."
-                        "Ensure your data is shaped accordingly.")
+    def dump(self) -> dict:
+        return {"n_sample": self._n_sample, "total_value": self._total_value}
+
+    def load(self, state: dict) -> None:
+        self._total_value = state["total_value"]
+        self._n_sample = state["n_sample"]
+
+    def merge(self, *others):
+        for other in others:
+            self._total_value += other._total_value
+            self._n_sample += other._n_sample
 
     def update(self, predictions, labels):
         """
@@ -98,14 +122,23 @@ class MAE(Metric):
     Mean Absolute Error metric
     """
 
-    def __init__(self, name='mae', batch_axis=0):
+    def __init__(self, name="mae", batch_axis=0):
         super(MAE, self).__init__(name=name)
         self._total_value = 0
         self._n_sample = 0
         self._batch_axis = batch_axis
 
-        logger.warning(f"{self.__class__.__name__} initialized. Assuming batch axis is {self._batch_axis}."
-                        "Ensure your data is shaped accordingly.")
+    def dump(self) -> dict:
+        return {"n_sample": self._n_sample, "total_value": self._total_value}
+
+    def load(self, state: dict) -> None:
+        self._total_value = state["total_value"]
+        self._n_sample = state["n_sample"]
+
+    def merge(self, *others):
+        for other in others:
+            self._total_value += other._total_value
+            self._n_sample += other._n_sample
 
     def update(self, predictions, labels):
         """
@@ -113,9 +146,9 @@ class MAE(Metric):
         based on the current mini-batch's predictions and labels
         """
         n_sample = labels.shape[self._batch_axis]
-        self._total_value += torch.abs(
-            predictions.flatten() - labels.flatten()
-        ).sum().item()
+        self._total_value += (
+            torch.abs(predictions.flatten() - labels.flatten()).sum().item()
+        )
         self._n_sample += n_sample
 
     def value(self):
@@ -137,24 +170,24 @@ class Accuracy(Metric):
     Classification Accuracy
     """
 
-    def __init__(self, name='accuracy', class_index=None, confidence_threshold=None):
+    def __init__(self, name="accuracy", class_index=None, confidence_threshold=None):
         super(Accuracy, self).__init__(name=name)
 
         if class_index is not None:
             if confidence_threshold is None:
                 msg = (
-                    'when class_index is specified, ',
-                    'the confidence_threshold must also be specified',
+                    "when class_index is specified, ",
+                    "the confidence_threshold must also be specified",
                 )
-                raise RuntimeError(''.join(msg))
+                raise RuntimeError("".join(msg))
             if not (0 <= confidence_threshold <= 1):
-                raise RuntimeError('confidence_threshold must be in [0, 1]')
+                raise RuntimeError("confidence_threshold must be in [0, 1]")
 
             msg = (
-                'when class_index is specified, ',
-                'the predictions given to update() will be softmax-normalized',
+                "when class_index is specified, ",
+                "the predictions given to update() will be softmax-normalized",
             )
-            logger.warning(''.join(msg))
+            logger.warning("".join(msg))
             self.update_function = self.update_binary
         else:
             self.update_function = self.update_multiclass
@@ -164,17 +197,39 @@ class Accuracy(Metric):
         self._class_index = class_index
         self._confidence_threshold = confidence_threshold
 
+    def dump(self) -> dict:
+        return {
+            "n_sample": self._n_sample,
+            "n_correct": self._n_correct,
+            "class_index": self._class_index,
+            "confidence_threshold": self._confidence_threshold,
+        }
+
+    def load(self, state: dict) -> None:
+        self._n_sample = state["n_sample"]
+        self._n_correct = state["n_correct"]
+        self._class_index = state["class_index"]
+        self._confidence_threshold = state["confidence_threshold"]
+
+    def merge(self, *others):
+        for other in others:
+            self._n_correct += other._n_correct
+            self._n_sample += other._n_sample
+
     def update_binary(self, predictions, labels):
         """
         update function for binary accuracy computation
         """
         predictions = torch.softmax(predictions, -1)
-        predictions = (predictions[:, self._class_index] >= self._confidence_threshold).flatten().long()
+        predictions = (
+            (predictions[:, self._class_index] >= self._confidence_threshold)
+            .flatten()
+            .long()
+        )
         # label is multi-class, need to convert to binary form
         labels = (labels == self._class_index).flatten().long()
         self._n_correct += (predictions == labels).sum().item()
         self._n_sample += predictions.size(0)
-
 
     def update_multiclass(self, predictions, labels):
         self._n_correct += (predictions.argmax(dim=-1) == labels).sum().item()
@@ -198,24 +253,25 @@ class Precision(Metric):
     """
     Precision
     """
-    def __init__(self, name='precision', class_index=None, confidence_threshold=None):
+
+    def __init__(self, name="precision", class_index=None, confidence_threshold=None):
         super(Precision, self).__init__(name=name)
 
         if class_index is not None:
             if confidence_threshold is None:
                 msg = (
-                    'when class_index is specified, ',
-                    'the confidence_threshold must also be specified',
+                    "when class_index is specified, ",
+                    "the confidence_threshold must also be specified",
                 )
-                raise RuntimeError(''.join(msg))
+                raise RuntimeError("".join(msg))
             if not (0 <= confidence_threshold <= 1):
-                raise RuntimeError('confidence_threshold must be in [0, 1]')
+                raise RuntimeError("confidence_threshold must be in [0, 1]")
 
             msg = (
-                'when class_index is specified, ',
-                'the predictions given to update() will be softmax-normalized',
+                "when class_index is specified, ",
+                "the predictions given to update() will be softmax-normalized",
             )
-            logger.warning(''.join(msg))
+            logger.warning("".join(msg))
             self.update_function = self.update_binary
             self.value_function = self.value_binary
         else:
@@ -228,6 +284,42 @@ class Precision(Metric):
         self._class_index = class_index
         self._confidence_threshold = confidence_threshold
 
+    def dump(self) -> dict:
+        data = {
+            "n_sample": self._n_sample,
+            "n_class": self._n_class,
+            "class_index": self._class_index,
+            "confidence_threshold": self._confidence_threshold,
+        }
+
+        for i in range(self._n_class):
+            for key in self._stat[i].keys():
+                data[f"true_pos_{i}"] = self._stat[i]["true_pos"]
+                data[f"false_pos_{i}"] = self._stat[i]["false_pos"]
+                data[f"false_neg_{i}"] = self._stat[i]["false_neg"]
+        return data
+
+    def load(self, state: dict) -> None:
+        self._n_sample = state["n_sample"]
+        self._n_class = state["n_class"]
+        self._class_index = state["class_index"]
+        self._confidence_threshold = state["confidence_threshold"]
+        self._stat = {}
+        for i in range(self._n_class):
+            self._stat[i] = {
+                "true_pos": state[f"true_pos_{i}"],
+                "false_pos": state[f"false_pos_{i}"],
+                "false_neg": state[f"false_neg_{i}"],
+            }
+
+    def merge(self, *others):
+        for other in others:
+            self._n_sample += other._n_sample
+            for i in range(self._n_class):
+                self._stat[i]["true_pos"] += other._stat[i]["true_pos"]
+                self._stat[i]["false_pos"] += other._stat[i]["false_pos"]
+                self._stat[i]["false_neg"] += other._stat[i]["false_neg"]
+
     def update(self, predictions, labels):
         self.update_function(predictions, labels)
 
@@ -235,7 +327,10 @@ class Precision(Metric):
         if self._n_class == 0:
             # initialize for the 1st time calling update()
             self._n_class = predictions.size(1)
-            self._stat = {i: {'true_pos': 0, 'false_pos': 0, 'false_neg': 0} for i in range(self._n_class)}
+            self._stat = {
+                i: {"true_pos": 0, "false_pos": 0, "false_neg": 0}
+                for i in range(self._n_class)
+            }
 
         self._n_sample += predictions.size(0)
         predictions = predictions.argmax(dim=-1).cpu().detach().numpy()
@@ -246,10 +341,9 @@ class Precision(Metric):
             label_pos_index = np.where(labels == i)[0]
             true_pos = np.intersect1d(pred_pos_index, label_pos_index).size
             false_neg = np.intersect1d(pred_neg_index, label_pos_index).size
-            self._stat[i]['true_pos'] += true_pos
-            self._stat[i]['false_pos'] += pred_pos_index.size - true_pos
-            self._stat[i]['false_neg'] += false_neg
-
+            self._stat[i]["true_pos"] += true_pos
+            self._stat[i]["false_pos"] += pred_pos_index.size - true_pos
+            self._stat[i]["false_neg"] += false_neg
 
     def update_binary(self, predictions, labels):
         if self._n_class == 0:
@@ -257,14 +351,18 @@ class Precision(Metric):
             self._n_class = predictions.size(1)
             if self._class_index >= self._n_class:
                 raise RuntimeError(
-                    'given class_index exceeds the number of class in predictions'
+                    "given class_index exceeds the number of class in predictions"
                 )
-            self._stat = {'true_pos': 0, 'false_pos': 0, 'false_neg': 0}
+            self._stat = {"true_pos": 0, "false_pos": 0, "false_neg": 0}
 
         self._n_sample += predictions.size(0)
         # handle predictions for binary case
         predictions = torch.softmax(predictions, -1)
-        predictions = (predictions[:, self._class_index] >= self._confidence_threshold).flatten().long()
+        predictions = (
+            (predictions[:, self._class_index] >= self._confidence_threshold)
+            .flatten()
+            .long()
+        )
         # handle labels for binary case
         labels = (labels == self._class_index).flatten().long()
 
@@ -277,20 +375,20 @@ class Precision(Metric):
 
         true_pos = np.intersect1d(pred_pos_index, label_pos_index).size
         false_neg = np.intersect1d(pred_neg_index, label_pos_index).size
-        self._stat['true_pos'] += true_pos
-        self._stat['false_pos'] += pred_pos_index.size - true_pos
-        self._stat['false_neg'] += false_neg
+        self._stat["true_pos"] += true_pos
+        self._stat["false_pos"] += pred_pos_index.size - true_pos
+        self._stat["false_neg"] += false_neg
 
     def value_multiclass(self):
         if self._n_sample > 0:
             values = []
             for i in range(self._n_class):
-                denominator = self._stat[i]['true_pos'] + self._stat[i]['false_pos']
+                denominator = self._stat[i]["true_pos"] + self._stat[i]["false_pos"]
                 if denominator == 0:
-                    logger.warning(f'Zero in the denominator of precision in class {i}')
+                    logger.warning(f"Zero in the denominator of precision in class {i}")
                     values.append(0)
                 else:
-                    nominator = self._stat[i]['true_pos']
+                    nominator = self._stat[i]["true_pos"]
                     values.append(nominator / denominator)
             return np.mean(values)
         else:
@@ -298,19 +396,18 @@ class Precision(Metric):
 
     def value_binary(self):
         if self._n_sample > 0:
-            denominator = self._stat['true_pos'] + self._stat['false_pos']
+            denominator = self._stat["true_pos"] + self._stat["false_pos"]
             if denominator == 0:
-                logger.warning(f'Zero in the denominator of precision')
+                logger.warning(f"Zero in the denominator of precision")
                 return 0.0
             else:
-                nominator = self._stat['true_pos']
+                nominator = self._stat["true_pos"]
                 return nominator / denominator
         else:
             return 0.0
 
     def value(self):
         return self.value_function()
-
 
     def reset(self):
         self._stat = {}
@@ -322,23 +419,24 @@ class Recall(Precision):
     """
     Recall
     """
-    def __init__(self, name='recall', class_index=None, confidence_threshold=None):
+
+    def __init__(self, name="recall", class_index=None, confidence_threshold=None):
         super(Recall, self).__init__(
             name=name,
             class_index=class_index,
-            confidence_threshold=confidence_threshold
+            confidence_threshold=confidence_threshold,
         )
 
     def value_multiclass(self):
         if self._n_sample > 0:
             values = []
             for i in range(self._n_class):
-                denominator = self._stat[i]['true_pos'] + self._stat[i]['false_neg']
+                denominator = self._stat[i]["true_pos"] + self._stat[i]["false_neg"]
                 if denominator == 0:
-                    logger.warning(f'Zero in the denominator of recall in class {i}')
+                    logger.warning(f"Zero in the denominator of recall in class {i}")
                     values.append(0)
                 else:
-                    nominator = self._stat[i]['true_pos']
+                    nominator = self._stat[i]["true_pos"]
                     values.append(nominator / denominator)
             return np.mean(values)
         else:
@@ -346,12 +444,12 @@ class Recall(Precision):
 
     def value_binary(self):
         if self._n_sample > 0:
-            denominator = self._stat['true_pos'] + self._stat['false_neg']
+            denominator = self._stat["true_pos"] + self._stat["false_neg"]
             if denominator == 0:
-                logger.warning(f'Zero in the denominator of recall')
+                logger.warning(f"Zero in the denominator of recall")
                 return 0.0
             else:
-                nominator = self._stat['true_pos']
+                nominator = self._stat["true_pos"]
                 return nominator / denominator
         else:
             return 0.0
@@ -361,7 +459,8 @@ class F1(Precision):
     """
     F1 metric
     """
-    def __init__(self, name='f1', class_index=None, confidence_threshold=None):
+
+    def __init__(self, name="f1", class_index=None, confidence_threshold=None):
         super(F1, self).__init__(
             name=name,
             class_index=class_index,
@@ -373,21 +472,25 @@ class F1(Precision):
             values = []
             for i in range(self._n_class):
                 # compute recall
-                recall_denominator = self._stat[i]['true_pos'] + self._stat[i]['false_neg']
+                recall_denominator = (
+                    self._stat[i]["true_pos"] + self._stat[i]["false_neg"]
+                )
                 if recall_denominator == 0:
-                    logger.warning(f'Zero in the denominator of recall in class {i}')
+                    logger.warning(f"Zero in the denominator of recall in class {i}")
                     recall = 0
                 else:
-                    recall_nominator = self._stat[i]['true_pos']
+                    recall_nominator = self._stat[i]["true_pos"]
                     recall = recall_nominator / recall_denominator
 
                 # compute precision
-                precision_denominator = self._stat[i]['true_pos'] + self._stat[i]['false_pos']
+                precision_denominator = (
+                    self._stat[i]["true_pos"] + self._stat[i]["false_pos"]
+                )
                 if precision_denominator == 0:
-                    logger.warning(f'Zero in the denominator of precision in class {i}')
+                    logger.warning(f"Zero in the denominator of precision in class {i}")
                     precision = 0
                 else:
-                    precision_nominator = self._stat[i]['true_pos']
+                    precision_nominator = self._stat[i]["true_pos"]
                     precision = precision_nominator / precision_denominator
 
                 if abs(precision + recall) <= 1e-7:
@@ -399,25 +502,24 @@ class F1(Precision):
         else:
             return 0.0
 
-
     def value_binary(self):
         if self._n_sample > 0:
             # compute recall
-            recall_denominator = self._stat['true_pos'] + self._stat['false_neg']
+            recall_denominator = self._stat["true_pos"] + self._stat["false_neg"]
             if recall_denominator == 0:
-                logger.warning(f'Zero in the denominator of recall')
+                logger.warning("Zero in the denominator of recall")
                 recall = 0
             else:
-                recall_nominator = self._stat['true_pos']
+                recall_nominator = self._stat["true_pos"]
                 recall = recall_nominator / recall_denominator
 
             # compute precision
-            precision_denominator = self._stat['true_pos'] + self._stat['false_pos']
+            precision_denominator = self._stat["true_pos"] + self._stat["false_pos"]
             if precision_denominator == 0:
-                logger.warning(f'Zero in the denominator of precision')
+                logger.warning("Zero in the denominator of precision")
                 precision = 0
             else:
-                precision_nominator = self._stat['true_pos']
+                precision_nominator = self._stat["true_pos"]
                 precision = precision_nominator / precision_denominator
 
             if abs(precision + recall) <= 1e-7:
@@ -433,14 +535,24 @@ class CrossEntropy(Metric):
     """
     Cross Entropy
     """
-    def __init__(self, name='cross_entropy', batch_axis=0):
+
+    def __init__(self, name="cross_entropy", batch_axis=0):
         super(CrossEntropy, self).__init__(name=name)
         self._total_value = 0
         self._n_sample = 0
         self._batch_axis = batch_axis
 
-        logger.warning(f"{self.__class__.__name__} initialized. Assuming batch axis is {self._batch_axis}."
-                        "Ensure your data is shaped accordingly.")
+    def dump(self) -> dict:
+        return {"n_sample": self._n_sample, "total_value": self._total_value}
+
+    def load(self, state: dict) -> None:
+        self._total_value = state["total_value"]
+        self._n_sample = state["n_sample"]
+
+    def merge(self, *others):
+        for other in others:
+            self._total_value += other._total_value
+            self._n_sample += other._n_sample
 
     def update(self, predictions, labels):
         """
@@ -470,6 +582,7 @@ class MetricFromLoss(Metric):
     """
     Metric class for the corresponding loss function
     """
+
     def __init__(self, name, loss_func, batch_axis=0):
         super(MetricFromLoss, self).__init__(name=name)
         self._loss_func = loss_func
@@ -477,8 +590,22 @@ class MetricFromLoss(Metric):
         self._n_sample = 0
         self._batch_axis = batch_axis
 
-        logger.warning(f"{self.__class__.__name__} initialized. Assuming batch axis is {self._batch_axis}."
-                "Ensure your data is shaped accordingly.")
+        logger.warning(
+            f"{self.__class__.__name__} initialized. Assuming batch axis is {self._batch_axis}."
+            "Ensure your data is shaped accordingly."
+        )
+
+    def dump(self) -> dict:
+        return {"n_sample": self._n_sample, "total_value": self._total_value}
+
+    def load(self, state: dict) -> None:
+        self._total_value = state["total_value"]
+        self._n_sample = state["n_sample"]
+
+    def merge(self, *others):
+        for other in others:
+            self._total_value += other._total_value
+            self._n_sample += other._n_sample
 
     def update(self, predictions, labels):
         """
@@ -504,6 +631,7 @@ class NestedMetric(Metric):
     """
     Convert a list of metrics to a single metric interface
     """
+
     def __init__(self, name, metrics, weights=None):
         super(NestedMetric, self).__init__(name=name)
         self._metrics = metrics
@@ -558,8 +686,8 @@ class NestedMetric(Metric):
             else:
                 return value + metrics.get_printable_value(indent)
 
-    def get_printable_value(self, indent=''):
-        value = ''
+    def get_printable_value(self, indent=""):
+        value = ""
         return self._recursive_printable_value(self.metrics, value, indent)
 
     def reset(self):
@@ -604,6 +732,7 @@ def concatenate_list(inputs):
     in which each np.ndarray is a concatenation of the corresponding element
     from the same position
     """
+
     def _create_nested_list(x, data):
         if isinstance(x, (list, tuple)):
             # there is a nested structure

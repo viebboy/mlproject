@@ -1,11 +1,11 @@
 """
-trainer.py: base trainer implementation for mlproject
------------------------------------------------------
+distributed_trainer.py: base distributed trainer implementation for mlproject
+-----------------------------------------------------------------------------
 
 
 * Copyright: Dat Tran
 * Authors: Dat Tran (viebboy@gmail.com)
-* Date: 2022-01-01
+* Date: 2023-11-18
 * Version: 0.0.1
 
 This is part of the MLProject
@@ -19,6 +19,7 @@ Apache 2.0 License
 
 import torch
 import torch.optim as optim
+import lightning
 from tqdm import tqdm
 import os
 from glob import glob
@@ -57,9 +58,10 @@ def get_multiplicative_lr_scheduler(init_lr, drop_at, multiplicative_factor):
 
 
 class Logger:
-    def __init__(self, *loggers):
+    def __init__(self, id: int, *loggers):
         self.loggers = loggers
         self.file_handles = []
+        self.id = id
 
     def add_file_handle(self, fid):
         self.file_handles.append(fid)
@@ -74,25 +76,44 @@ class Logger:
 
     def info(self, msg):
         for logger in self.loggers:
-            logger.info(msg)
+            logger.info(f"Process Global Rank: {self.id} | {msg}")
         for fid in self.file_handles:
-            fid.write(f"{self.timestamp()} INFO: {msg}\n")
+            fid.write(
+                f"{self.timestamp()} INFO: Process Global Rank: {self.id} | {msg}\n"
+            )
 
     def debug(self, msg):
         for logger in self.loggers:
-            logger.debug(msg)
+            logger.debug(f"Process Global Rank: {self.id} | {msg}")
         for fid in self.file_handles:
-            fid.write(f"{self.timestamp()} DEBUG: {msg}\n")
+            fid.write(
+                f"{self.timestamp()} DEBUG: Process Global Rank: {self.id} | {msg}\n"
+            )
 
     def warning(self, msg):
         for logger in self.loggers:
-            logger.warning(msg)
+            logger.warning(f"Process Global Rank: {self.id} | {msg}")
         for fid in self.file_handles:
-            fid.write(f"{self.timestamp()} WARN: {msg}\n")
+            fid.write(
+                f"{self.timestamp()} WARNING: Process Global Rank: {self.id} | {msg}\n"
+            )
+
+    def error(self, msg):
+        for logger in self.loggers:
+            logger.error(f"Process Global Rank: {self.id} | {msg}")
+        for fid in self.file_handles:
+            fid.write(
+                f"{self.timestamp()} ERROR: Process Global Rank: {self.id} | {msg}\n"
+            )
 
 
 class Trainer:
     n_test_minibatch = 100
+    FABRIC = None
+
+    @classmethod
+    def setup(cls):
+        cls.FABRIC = lightning.Fabric()
 
     def __init__(
         self,
@@ -113,7 +134,6 @@ class Trainer:
         print_freq: int = 10,
         use_progress_bar: bool = True,
         test_mode: bool = False,
-        move_data_to_device: bool = True,
         retain_metric_objects: bool = True,
         sample_input=None,
         logger=guru_logger,
@@ -146,7 +166,6 @@ class Trainer:
         self.print_freq = print_freq
         self.use_progress_bar = use_progress_bar
         self.test_mode = test_mode
-        self.move_data_to_device = move_data_to_device
         self.retain_metric_objects = retain_metric_objects
         self.sample_input = sample_input
         # wrap user's logger into another interface that allows adding file
@@ -206,22 +225,6 @@ class Trainer:
         else:
             return False
 
-    def _move_data_to_device(self, input_data, device, add_batch_axis=False):
-        if isinstance(input_data, (list, tuple)):
-            # there is a nested structure
-            # create sub list for each item
-            output_data = []
-            for item in input_data:
-                output_data.append(
-                    self._move_data_to_device(item, device, add_batch_axis)
-                )
-            return output_data
-        else:
-            if add_batch_axis:
-                return input_data.to(device).unsqueeze(0)
-            else:
-                return input_data.to(device)
-
     def verify_data(self, data: dict):
         if data is None:
             return
@@ -232,19 +235,46 @@ class Trainer:
         if not isinstance(data, dict) or "dataloader" not in data:
             raise RuntimeError(msg)
 
+    def prepare_data(
+        self, model: torch.nn.Module, train_data: dict, val_data: dict, test_data: dict
+    ):
+        """
+        Setup for distributed training
+        """
+        train_data["dataloader"] = self.FABRIC.setup_dataloaders(
+            train_data["dataloader"]
+        )
+        if val_data is not None:
+            val_data["dataloader"] = self.FABRIC.setup_dataloaders(
+                val_data["dataloader"]
+            )
+
+        if test_data is not None:
+            test_data["dataloader"] = self.FABRIC.setup_dataloaders(
+                test_data["dataloader"]
+            )
+
     def fit(
         self,
         model: torch.nn.Module,
         train_data: dict,
         val_data: dict = None,
         test_data: dict = None,
-        device=torch.device("cpu"),
         tensorboard_logger=None,
         logger_prefix="",
     ):
+        if self.FABRIC is None:
+            raise RuntimeError(
+                (
+                    f"{self.__class__}.setup() must be called before fit(). "
+                    "Ideally before any dataset or dataloader creation"
+                )
+            )
         self.verify_data(train_data)
         self.verify_data(val_data)
         self.verify_data(test_data)
+
+        self.prepare_data(train_data, val_data, test_data)
 
         if self.test_mode:
             self.total_minibatch = min(
@@ -259,7 +289,7 @@ class Trainer:
         if self.has_final_artifacts():
             self.logger.warning(f"final artifacts exist under {self.output_dir}")
             self.logger.warning("no training was done")
-            self.logger.warning(f"if you want to retrain model, please remove them")
+            self.logger.warning("if you want to retrain model, please remove them")
 
             # load performance
             with open(self.final_performance_file, "rb") as fid:
@@ -268,27 +298,31 @@ class Trainer:
             return performance
 
         self.prepare_log_dir()
-        n_epoch_done = 0
 
         model.float()
-        model.to(device, non_blocking=True)
-        model.train()
-
         optimizer = self.get_optimizer(model)
-        self.load_from_checkpoint(model, optimizer, device)
+
+        # note that load_from_checkpoint assume model is in CPU
+        # model should be moved to GPU only after this
+        self.load_from_checkpoint(model, optimizer)
+
+        # prepare model and optimizer for distributed training
+        # here model is moved to correct device
+        model, optimizer = self.FABRIC.setup(model, optimizer)
+
         self.start_time = time.time()
         self.start_minibatch_idx = self.cur_minibatch
 
         while self.epoch_idx < self.n_epoch:
             # optimize one epoch
             self.update_lr(optimizer)
-            self.update_loop(model, train_data, optimizer, device)
+            self.update_loop(model, train_data, optimizer)
             self.epoch_idx += 1
 
             if (self.epoch_idx % self.eval_freq) == 0:
-                train_performance = self.eval(model, train_data, device, "train set")
-                val_performance = self.eval(model, val_data, device, "val set")
-                test_performance = self.eval(model, test_data, device, "test set")
+                train_performance = self.eval(model, train_data, "train set")
+                val_performance = self.eval(model, val_data, "val set")
+                test_performance = self.eval(model, test_data, "test set")
                 self.update_metrics(
                     train_performance, val_performance, test_performance
                 )
@@ -298,22 +332,18 @@ class Trainer:
                 self.print_metrics(test_performance, "test")
 
                 # if checkpoint frequency is None, then save checkpoint after
-                # ealuation
+                # evaluation
                 if self.checkpoint_freq is None:
                     self.update_checkpoint(model, optimizer, False)
-                    # move back to device because exporting a model will move it
-                    # back to cpu and put it in eval mode
-                    model.to(device)
-                    model.train()
 
         # load the best model based on validation performance if exist, or train performance
         self.load_best(model)
 
         # eval this best model
         self.logger.info("evaluating performance of the final model...")
-        final_train_metrics = self.eval(model, train_data, device, "train set")
-        final_val_metrics = self.eval(model, val_data, device, "val set")
-        final_test_metrics = self.eval(model, test_data, device, "test set")
+        final_train_metrics = self.eval(model, train_data, "train set")
+        final_val_metrics = self.eval(model, val_data, "val set")
+        final_test_metrics = self.eval(model, test_data, "test set")
 
         self.print_metrics(final_train_metrics, "final_train")
         self.print_metrics(final_val_metrics, "final_val")
@@ -348,8 +378,10 @@ class Trainer:
             dill.dump(performance, fid, recurse=True)
 
         # save torch checkpoint
-        model.cpu()
-        torch.save(model, self.final_checkpoint_file)
+        if self.FABRIC.is_global_zero():
+            torch.save(model, self.final_checkpoint_file)
+            self.logger.info(f"save final model in {self.final_checkpoint_file}")
+        self.FABRIC.barrier()
 
         # save onnx checkpoint
         self.export_to_onnx(model, self.sample_input, self.onnx_checkpoint_file)
@@ -484,23 +516,29 @@ class Trainer:
             for f in os.listdir(self.log_dir)
             if f.startswith("checkpoint_")
         ]
+        history_files = [
+            os.path.join(self.log_dir, f)
+            for f in os.listdir(self.log_dir)
+            if f.startswith("history_")
+        ]
 
-        for filename in checkpoint_files:
-            fid = open(filename, "rb")
-            checkpoint = dill.load(fid)
-            fid.close()
+        for checkpoint_filename, history_filename in zip(
+            checkpoint_files, history_files
+        ):
+            with open(history_filename, "rb") as fid:
+                history = dill.load(fid)
 
             if (
                 has_val
-                and val_key in checkpoint["history"]
-                and len(checkpoint["history"][val_key]) > 0
+                and val_key in history["history"]
+                and len(history["history"][val_key]) > 0
             ):
-                metric_value = checkpoint["history"][val_key][-1]
+                metric_value = history["history"][val_key][-1]
             elif (
-                train_key in checkpoint["history"]
-                and len(checkpoint["history"][train_key]) > 0
+                train_key in history["history"]
+                and len(history["history"][train_key]) > 0
             ):
-                metric_value = checkpoint["history"][train_key][-1]
+                metric_value = history["history"][train_key][-1]
             else:
                 continue
 
@@ -510,6 +548,9 @@ class Trainer:
                 self.monitor_direction == "higher" and metric_value > best_value
             ):
                 best_value = metric_value
+                checkpoint = torch.load(
+                    checkpoint_filename, map_location=self.FABRIC.device
+                )
                 state_dict = checkpoint["model_state_dict"]
 
         model.load_state_dict(state_dict)
@@ -570,16 +611,17 @@ class Trainer:
                     model.parameters(), weight_decay=self.weight_decay, lr=lr
                 )
             else:
-                raise NotImplemented
+                raise NotImplementedError(f"Optimizer {self.optimizer} not supported")
 
         return optimizer
 
-    def eval(self, model: torch.nn.Module, data: dict, device, dataset_name: str):
+    def eval(self, model: torch.nn.Module, data: dict, dataset_name: str):
         if data is None or data["dataloader"] is None:
             return {}
 
         self.logger.info(f"evaluating {dataset_name}...")
         model.eval()
+
         # reset the metric objects
         for m in self.metrics:
             m.reset()
@@ -607,16 +649,15 @@ class Trainer:
                 if minibatch_idx == total_minibatch:
                     break
 
-                if self.move_data_to_device:
-                    inputs = self._move_data_to_device(inputs, device)
-                    labels = self._move_data_to_device(labels, device)
-
                 predictions = model(inputs)
                 for m in metrics:
                     m.update(predictions=predictions, labels=labels)
 
+        # gather the values from all processes
         # note here that we are collecting the metric object
         # not just the value
+        metrics = self.gather_metrics(metrics)
+
         performance = {}
         if self.retain_metric_objects:
             for m in metrics:
@@ -627,40 +668,61 @@ class Trainer:
 
         return performance
 
+    def gather_metrics(self, metrics: list):
+        """
+        Gather metric objects from all processes
+        """
+
+        for m in metrics:
+            values = self.FABRIC.all_gather(m.dump())
+            # values is a dictionary, each key holds a list of value
+            # now unwrap into a list of dictionaries
+            fields = list(values.keys())
+            nb_instance = len(values[fields[0]])
+            # then reconstruct metric objects from all processes
+            instances = []
+            for i in range(nb_instance):
+                metric_obj = copy.deepcopy(m)
+                serialized_values = {}
+                for field in fields:
+                    serialized_values[field] = values[field][i]
+                instances.append(metric_obj.load(serialized_values))
+
+            # reset the metric object
+            m.reset()
+            # then gather them
+            m.merge(*instances)
+
+        return metrics
+
     def update_lr(self, optimizer):
         # update learning rate using lr_scheduler
         lr = self.lr_scheduler(self.n_epoch, self.epoch_idx)
         for param_group in optimizer.param_groups:
             param_group["lr"] = lr
 
-    def update_loop(self, model, data, optimizer, device):
+    def update_loop(self, model, data, optimizer):
         total_time = 0
         forward_time = 0
         backward_time = 0
         data_prep_time = 0
-        data_to_gpu_time = 0
         profile_counter = 0
 
+        # important to switch to train mode
         model.train()
 
-        start_stamp = time.time()
+        start_stamp = time.perf_counter()
 
         epoch_ended = False
         for inputs, labels in data["dataloader"]:
             if epoch_ended:
                 break
 
-            pre_gpu_stamp = time.time()
-
-            if self.move_data_to_device:
-                inputs = self._move_data_to_device(inputs, device)
-                labels = self._move_data_to_device(labels, device)
-
-            pre_forward_stamp = time.time()
+            pre_forward_stamp = time.perf_counter()
             predictions = model(inputs)
-            post_forward_stamp = time.time()
+            post_forward_stamp = time.perf_counter()
             loss = self.loss_function(predictions, labels)
-            loss.backward()
+            self.FABRIC.backward(loss)
             optimizer.step()
             backward_stamp = time.time()
             optimizer.zero_grad()
@@ -673,8 +735,7 @@ class Trainer:
             forward_time += post_forward_stamp - pre_forward_stamp
             backward_time += backward_stamp - post_forward_stamp
             total_time += backward_stamp - start_stamp
-            data_prep_time += pre_gpu_stamp - start_stamp
-            data_to_gpu_time += pre_forward_stamp - pre_gpu_stamp
+            data_prep_time += pre_forward_stamp - start_stamp
             profile_counter += 1
 
             # increment counter for minibatch
@@ -685,16 +746,13 @@ class Trainer:
 
             # record the sample input for ONNX export if user doesnt provide
             if self.sample_input is None:
-                self.sample_input = self._move_data_to_device(
-                    inputs, torch.device("cpu")
-                )
+                self.sample_input = inputs
 
             if (self.cur_minibatch % self.print_freq) == 0:
                 # printing if needed
                 self.print_and_update(
                     total_time,
                     data_prep_time,
-                    data_to_gpu_time,
                     forward_time,
                     backward_time,
                     profile_counter,
@@ -702,7 +760,6 @@ class Trainer:
                 # reset
                 total_time = 0
                 data_prep_time = 0
-                data_to_gpu_time = 0
                 forward_time = 0
                 backward_time = 0
                 profile_counter = 0
@@ -714,12 +771,8 @@ class Trainer:
             ):
                 # checkpoint every K minibatch
                 self.update_checkpoint(model, optimizer, epoch_ended)
-                # move back to device because exporting a model will move it
-                # back to cpu and put it in eval mode
-                model.to(device)
-                model.train()
 
-            start_stamp = time.time()
+            start_stamp = time.perf_counter()
 
             if self.test_mode and self.minibatch_idx > self.total_minibatch:
                 # early stopping for test mode
@@ -729,61 +782,75 @@ class Trainer:
         self.minibatch_idx = 0
 
     def update_checkpoint(self, model, optimizer, epoch_ended):
-        # move back model to cpu
-        # and put in eval mode
-        model.cpu()
-        model.eval()
+        # only save checkpoint if global rank is zero
+        if self.FABRIC.is_global_zero():
+            # put in eval mode
+            model.eval()
 
-        # checkpoint every K minibatch
-        checkpoint = {
-            "epoch_idx": self.epoch_idx,
-            "cur_minibatch": self.cur_minibatch,
-            "minibatch_idx": self.minibatch_idx,
-            "model_state_dict": model.state_dict(),
-            "optimizer_state_dict": optimizer.state_dict(),
-            "history": self.history,
-            "accumulated_loss_counter": self.accumulated_loss_counter,
-            "accumulated_loss": self.accumulated_loss,
-            "epoch_ended": epoch_ended,
-            "history_indices": self.history_indices,
-        }
+            # checkpoint every K minibatch
+            checkpoint = {
+                "epoch_idx": self.epoch_idx,
+                "cur_minibatch": self.cur_minibatch,
+                "minibatch_idx": self.minibatch_idx,
+                "model_state_dict": model.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "epoch_ended": epoch_ended,
+            }
+            history = {"history": self.history, "history_indices": self.history_indices}
 
-        checkpoint_file = os.path.join(
-            self.log_dir,
-            "checkpoint_{:09d}_{:09d}.dill".format(self.cur_minibatch, self.epoch_idx),
-        )
-        with open(checkpoint_file, "wb") as fid:
-            dill.dump(checkpoint, fid)
+            checkpoint_file = os.path.join(
+                self.log_dir,
+                "checkpoint_{:09d}_{:09d}.pt".format(
+                    self.cur_minibatch, self.epoch_idx
+                ),
+            )
 
-        self.logger.info(f"save checkpoint to {checkpoint_file}")
+            torch.save(checkpoint, checkpoint_file)
 
-        checkpoint_files = glob(self.log_dir + "/checkpoint_*.dill")
-        checkpoint_files.sort()
+            # need to separate history because it contains metric objects, which may require
+            # dill for serialization
+            history_file = os.path.join(
+                self.log_dir,
+                "history_{:09d}_{:09d}.dill".format(self.cur_minibatch, self.epoch_idx),
+            )
+            with open(history_file, "wb") as fid:
+                dill.dump(history, fid, recurse=True)
 
-        no_checkpoint_files = len(checkpoint_files)
+            self.logger.info(f"save checkpoint to {checkpoint_file}")
+            self.logger.info(f"save history to {history_file}")
 
-        if self.max_checkpoint > 0 and no_checkpoint_files > self.max_checkpoint:
-            for idx in range(0, no_checkpoint_files - self.max_checkpoint):
-                os.remove(checkpoint_files[idx])
+            checkpoint_files = glob(self.log_dir + "/checkpoint_*.pt")
+            checkpoint_files.sort()
+            history_files = glob(self.log_dir + "/history_*.dill")
+            history_files.sort()
 
-        # ----- handle onnx checkpoints --------------------------
-        onnx_file = os.path.join(
-            self.log_dir,
-            "model_{:09d}_{:09d}.onnx".format(self.cur_minibatch, self.epoch_idx),
-        )
-        self.export_to_onnx(model, self.sample_input, onnx_file)
-        onnx_files = glob(self.log_dir + "/model_*.onnx")
-        onnx_files.sort()
-        nb_onnx_file = len(onnx_files)
-        if self.max_checkpoint > 0 and nb_onnx_file > self.max_checkpoint:
-            for idx in range(0, nb_onnx_file - self.max_checkpoint):
-                os.remove(onnx_files[idx])
+            no_checkpoint_files = len(checkpoint_files)
+
+            if self.max_checkpoint > 0 and no_checkpoint_files > self.max_checkpoint:
+                for idx in range(0, no_checkpoint_files - self.max_checkpoint):
+                    os.remove(checkpoint_files[idx])
+                    os.remove(history_files[idx])
+
+            # ----- handle onnx checkpoints --------------------------
+            onnx_file = os.path.join(
+                self.log_dir,
+                "model_{:09d}_{:09d}.onnx".format(self.cur_minibatch, self.epoch_idx),
+            )
+            self.export_to_onnx(model, self.sample_input, onnx_file)
+            onnx_files = glob(self.log_dir + "/model_*.onnx")
+            onnx_files.sort()
+            nb_onnx_file = len(onnx_files)
+            if self.max_checkpoint > 0 and nb_onnx_file > self.max_checkpoint:
+                for idx in range(0, nb_onnx_file - self.max_checkpoint):
+                    os.remove(onnx_files[idx])
+
+        # barrier is called for every process
+        self.FABRIC.barrier()
 
     def print_and_update(
         self,
         total_time,
         data_prep_time,
-        data_to_gpu_time,
         forward_time,
         backward_time,
         profile_counter,
@@ -810,10 +877,6 @@ class Trainer:
             "data prep={:.3f}, ".format(data_prep_time / profile_counter),
         ]
 
-        if self.move_data_to_device:
-            print_content.append(
-                "data to device={:.3f}, ".format(data_to_gpu_time / profile_counter),
-            )
         print_content.append(
             "forward={:.3f}, ".format(forward_time / profile_counter),
         )
@@ -902,36 +965,48 @@ class Trainer:
                     )
                     tensorboard_logger.flush()
 
-    def load_from_checkpoint(self, model, optimizer, device):
+    def load_from_checkpoint(self, model, optimizer):
         ckp_files = [
             os.path.join(self.log_dir, f)
             for f in os.listdir(self.log_dir)
             if f.startswith("checkpoint_")
         ]
         ckp_files.sort()
+        history_files = [
+            os.path.join(self.log_dir, f)
+            for f in os.listdir(self.log_dir)
+            if f.startswith("history_")
+        ]
+        history_files.sort()
 
         if self.checkpoint_idx == -1:
             # load from latest checkpoint
             if len(ckp_files) > 0:
-                with open(ckp_files[-1], "rb") as fid:
-                    checkpoint = dill.load(fid)
+                checkpoint = torch.load(ckp_files[-1], map_location=torch.device("cpu"))
+                with open(history_files[-1], "rb") as fid:
+                    history = dill.load(fid)
             else:
                 checkpoint = None
+                history = None
         elif self.checkpoint_idx is None:
             # train from scratch
             checkpoint = None
+            history = None
         elif self.checkpoint_idx >= 0:
             if len(ckp_files) == 0:
                 self.logger.warning(
-                    f"no checkpoint exists; training will be done from scratch"
+                    "no checkpoint exists; training will be done from scratch"
                 )
                 checkpoint = None
+                history = None
             else:
                 if self.checkpoint_idx < len(ckp_files):
                     ckp_file = ckp_files[self.checkpoint_idx]
-                    with open(ckp_file, "rb") as fid:
-                        checkpoint = dill.load(fid)
+                    checkpoint = torch.load(ckp_file, map_location=torch.device("cpu"))
                     self.logger.info(f"checkpoint file {ckp_file} loaded")
+                    with open(history_files[self.checkpoint_idx], "rb") as fid:
+                        history = dill.load(fid)
+                    self.logger.info(f"history file {ckp_file} loaded")
                 else:
                     msg = (
                         f"invalid checkpoint index: {self.checkpoint_idx}; ",
@@ -941,13 +1016,14 @@ class Trainer:
         else:
             raise RuntimeError(f"unknown checkpoint index: {self.checkpoint_idx}")
 
+        self.accumulated_loss_counter = 0
+        self.accumulated_loss = 0
+
         if checkpoint is None:
             self.epoch_idx = 0
             self.history = {}
             self.history_indices = []
             self.loss_curve = open(os.path.join(self.output_dir, "loss_curve.txt"), "w")
-            self.accumulated_loss_counter = 0
-            self.accumulated_loss = 0
             self.cur_minibatch = 0
             self.minibatch_idx = 0
             progress_file_handle = open(
@@ -962,10 +1038,8 @@ class Trainer:
             self.cur_minibatch = checkpoint["cur_minibatch"]
             self.minibatch_idx = checkpoint["minibatch_idx"]
             self.epoch_idx = checkpoint["epoch_idx"]
-            self.history = checkpoint["history"]
-            self.accumulated_loss_counter = checkpoint["accumulated_loss_counter"]
-            self.accumulated_loss = checkpoint["accumulated_loss"]
-            self.history_indices = checkpoint["history_indices"]
+            self.history = history["history"]
+            self.history_indices = history["history_indices"]
 
             if checkpoint["epoch_ended"]:
                 self.epoch_idx += 1
@@ -976,12 +1050,8 @@ class Trainer:
 
             # load optimizer state dict
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-            for state in optimizer.state.values():
-                for k, v in state.items():
-                    if torch.is_tensor(v):
-                        state[k] = v.to(device)
 
         if not isinstance(self.logger, Logger):
-            self.logger = Logger(self.logger)
+            self.logger = Logger(id=self.FABRIC.global_rank, logger=self.logger)
 
         self.logger.add_file_handle(progress_file_handle)

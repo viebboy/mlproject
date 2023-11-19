@@ -38,7 +38,7 @@ from mlproject.loss import (
     MSE,
     MAE,
 )
-from mlproject.trainer import (
+from mlproject.distributed_trainer import (
     get_cosine_lr_scheduler,
     get_multiplicative_lr_scheduler,
     Trainer as BaseTrainer,
@@ -113,6 +113,8 @@ def get_trainer(config_file: str, config: dict, config_name: str, config_index: 
     else:
         raise NotImplementedError()
 
+    # need to call setup 1st to prepare environment for distributed training
+    BaseTrainer.setup()
     # we use the standard trainer implementation from the library
     trainer = BaseTrainer(
         n_epoch=config["n_epoch"],
