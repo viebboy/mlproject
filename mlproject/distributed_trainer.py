@@ -786,6 +786,8 @@ class Trainer:
             ):
                 # checkpoint every K minibatch
                 self.update_checkpoint(model, optimizer, epoch_ended)
+                # remember to change to train mode
+                model.train()
 
             start_stamp = time.perf_counter()
 
