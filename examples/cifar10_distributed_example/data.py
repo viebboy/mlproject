@@ -48,8 +48,9 @@ class Dataset(CIFAR10):
     """
     Inherit from torchvision CIFAR10 dataset to provide keyword argument construction
     """
+
     def __init__(self, **kwargs):
-        if kwargs['prefix'] == 'train':
+        if kwargs["prefix"] == "train":
             train = True
         else:
             train = False
@@ -59,11 +60,20 @@ class Dataset(CIFAR10):
                 T.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
             ]
         )
-        super().__init__(root=kwargs['data_dir'], train=train, transform=transforms, download=True)
+        super().__init__(
+            root=kwargs["data_dir"], train=train, transform=transforms, download=True
+        )
 
     def __getitem__(self, i: int):
         x, y = super().__getitem__(i)
-        return x, torch.Tensor([y,]).long()
+        return (
+            x,
+            torch.Tensor(
+                [
+                    y,
+                ]
+            ).long(),
+        )
 
 
 def dispose_data_loader(*args):
@@ -85,12 +95,18 @@ def get_data_loader(config: dict, prefix: str):
         data loader object that allows iteration
     """
     params = {
-        'data_dir': config['data_dir'],
-        'prefix': prefix,
+        "data_dir": config["data_dir"],
+        "prefix": prefix,
     }
     dataset = Dataset(**params)
+    data_loader = TorchDataLoader(
+        dataset,
+        batch_size=config["batch_size"],
+        shuffle=True if prefix == "train" else False,
+    )
 
-    return
+    return data_loader
+
 
 def get_async_data_loader(config: dict, prefix: str):
     """
@@ -105,22 +121,24 @@ def get_async_data_loader(config: dict, prefix: str):
     # because our Dataset class receives 2 inputs, we put them into a
     # dictionary
     params = {
-        'data_dir': config['data_dir'],
-        'prefix': prefix,
+        "data_dir": config["data_dir"],
+        "prefix": prefix,
     }
 
-    if config['cache_setting'] is not None:
-        cache_setting = {key: value for key, value in config['cache_setting'].items()}
+    if config["cache_setting"] is not None:
+        cache_setting = {key: value for key, value in config["cache_setting"].items()}
         # append the dataset prefix
-        cache_setting['prefix'] = cache_setting['prefix'] + f'_{prefix}'
+        cache_setting["prefix"] = cache_setting["prefix"] + f"_{prefix}"
     else:
         cache_setting = None
 
-    if config['rotation_setting'] is not None:
-        rotation_setting = {key: value for key, value in config['rotation_setting'].items()}
+    if config["rotation_setting"] is not None:
+        rotation_setting = {
+            key: value for key, value in config["rotation_setting"].items()
+        }
         # append the dataset prefix
-        if rotation_setting['medium'] == 'disk':
-            rotation_setting['prefix'] = rotation_setting['prefix'] + f'_{prefix}'
+        if rotation_setting["medium"] == "disk":
+            rotation_setting["prefix"] = rotation_setting["prefix"] + f"_{prefix}"
     else:
         rotation_setting = None
 
@@ -128,44 +146,46 @@ def get_async_data_loader(config: dict, prefix: str):
     loader = DataLoader(
         dataset_class=Dataset,
         dataset_params=params,
-        batch_size=config['batch_size'],
-        nb_worker=config[f'{prefix}_nb_worker'],
-        max_queue_size=config[f'{prefix}_max_queue_size'],
-        shuffle=True if prefix == 'train' else False,
-        nearby_shuffle=config['nearby_shuffle'],
+        batch_size=config["batch_size"],
+        nb_worker=config[f"{prefix}_nb_worker"],
+        max_queue_size=config[f"{prefix}_max_queue_size"],
+        shuffle=True if prefix == "train" else False,
+        nearby_shuffle=config["nearby_shuffle"],
         cache_setting=cache_setting,
         rotation_setting=rotation_setting,
-        use_threading=config['use_threading_in_data_loader'],
+        use_threading=config["use_threading_in_data_loader"],
     )
 
     return loader
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     from tqdm import tqdm
+
     # test dataset
-    dataset_params = {'prefix': 'train', 'data_dir': './data/'}
+    dataset_params = {"prefix": "train", "data_dir": "./data/"}
     dataset = Dataset(**dataset_params)
-    print(f'dataset length: {len(dataset)}')
+    print(f"dataset length: {len(dataset)}")
     for i in tqdm(range(len(dataset))):
         x, y = dataset[i]
         pass
-    print('complete looping through dataset')
+    print("complete looping through dataset")
 
     # test dataloader
     config = {
-        'data_dir': './data/',
-        'batch_size': 64,
-        'train_nb_server': 1,
-        'train_start_port': 11111,
-        'train_max_queue_size': 10,
-        'packet_size': 125000,
-        'prefetch_time': 5,
+        "data_dir": "./data/",
+        "batch_size": 64,
+        "train_nb_server": 1,
+        "train_start_port": 11111,
+        "train_max_queue_size": 10,
+        "packet_size": 125000,
+        "prefetch_time": 5,
     }
-    loader = get_async_data_loader(config, 'train')
-    print(f'number of minibatch: {len(loader)}')
+    loader = get_async_data_loader(config, "train")
+    print(f"number of minibatch: {len(loader)}")
     for x, y in loader:
-        print(f'x type: {type(x)}, x shape: {x.shape}')
-        print(f'y type: {type(y)}, y shape: {y.shape}')
+        print(f"x type: {type(x)}, x shape: {x.shape}")
+        print(f"y type: {type(y)}, y shape: {y.shape}")
         pass
     loader.close()
-    print('complete testing async loader')
+    print("complete testing async loader")
