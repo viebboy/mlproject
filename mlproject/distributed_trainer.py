@@ -61,10 +61,9 @@ def get_multiplicative_lr_scheduler(init_lr, drop_at, multiplicative_factor):
 
 
 class Logger:
-    def __init__(self, id: int, *loggers):
-        self.loggers = loggers
+    def __init__(self, id: int):
         self.file_handles = []
-        self.id = id
+        self._id = id
 
     def add_file_handle(self, fid):
         self.file_handles.append(fid)
@@ -78,35 +77,31 @@ class Logger:
         return str(pd.Timestamp.now()).split(".")[0]
 
     def info(self, msg):
-        for logger in self.loggers:
-            logger.info(f"Process Global Rank: {self.id} | {msg}")
+        print(f"{self.timestamp()} INFO: Process Global Rank: {self._id} | {msg}\n")
         for fid in self.file_handles:
             fid.write(
-                f"{self.timestamp()} INFO: Process Global Rank: {self.id} | {msg}\n"
+                f"{self.timestamp()} INFO: Process Global Rank: {self._id} | {msg}\n"
             )
 
     def debug(self, msg):
-        for logger in self.loggers:
-            logger.debug(f"Process Global Rank: {self.id} | {msg}")
+        print(f"{self.timestamp()} DEBUG: Process Global Rank: {self._id} | {msg}\n")
         for fid in self.file_handles:
             fid.write(
-                f"{self.timestamp()} DEBUG: Process Global Rank: {self.id} | {msg}\n"
+                f"{self.timestamp()} DEBUG: Process Global Rank: {self._id} | {msg}\n"
             )
 
     def warning(self, msg):
-        for logger in self.loggers:
-            logger.warning(f"Process Global Rank: {self.id} | {msg}")
+        print(f"{self.timestamp()} WARNING: Process Global Rank: {self._id} | {msg}\n")
         for fid in self.file_handles:
             fid.write(
-                f"{self.timestamp()} WARNING: Process Global Rank: {self.id} | {msg}\n"
+                f"{self.timestamp()} WARNING: Process Global Rank: {self._id} | {msg}\n"
             )
 
     def error(self, msg):
-        for logger in self.loggers:
-            logger.error(f"Process Global Rank: {self.id} | {msg}")
+        print(f"{self.timestamp()} ERROR: Process Global Rank: {self._id} | {msg}\n")
         for fid in self.file_handles:
             fid.write(
-                f"{self.timestamp()} ERROR: Process Global Rank: {self.id} | {msg}\n"
+                f"{self.timestamp()} ERROR: Process Global Rank: {self._id} | {msg}\n"
             )
 
 
@@ -151,7 +146,6 @@ class Trainer:
         test_mode: bool = False,
         retain_metric_objects: bool = True,
         sample_input=None,
-        logger=guru_logger,
     ):
         if not (isinstance(eval_freq, int) and eval_freq >= 1):
             msg = (
@@ -183,9 +177,6 @@ class Trainer:
         self.test_mode = test_mode
         self.retain_metric_objects = retain_metric_objects
         self.sample_input = sample_input
-        # wrap user's logger into another interface that allows adding file
-        # handling
-        self.logger = Logger(logger)
 
         valid = False
         for metric in metrics:
@@ -259,12 +250,12 @@ class Trainer:
         train_data["dataloader"] = self.FABRIC.setup_dataloaders(
             train_data["dataloader"]
         )
-        if val_data is not None:
+        if val_data is not None and val_data["dataloader"] is not None:
             val_data["dataloader"] = self.FABRIC.setup_dataloaders(
                 val_data["dataloader"]
             )
 
-        if test_data is not None:
+        if test_data is not None and test_data["dataloader"] is not None:
             test_data["dataloader"] = self.FABRIC.setup_dataloaders(
                 test_data["dataloader"]
             )
@@ -393,7 +384,7 @@ class Trainer:
             dill.dump(performance, fid, recurse=True)
 
         # save torch checkpoint
-        if self.FABRIC.is_global_zero():
+        if self.FABRIC.is_global_zero:
             torch.save(model, self.final_checkpoint_file)
             self.logger.info(f"save final model in {self.final_checkpoint_file}")
         self.FABRIC.barrier()
@@ -798,7 +789,7 @@ class Trainer:
 
     def update_checkpoint(self, model, optimizer, epoch_ended):
         # only save checkpoint if global rank is zero
-        if self.FABRIC.is_global_zero():
+        if self.FABRIC.is_global_zero:
             # put in eval mode
             model.eval()
 
@@ -1066,7 +1057,5 @@ class Trainer:
             # load optimizer state dict
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
-        if not isinstance(self.logger, Logger):
-            self.logger = Logger(id=self.FABRIC.global_rank, logger=self.logger)
-
+        self.logger = Logger(id=self.FABRIC.global_rank)
         self.logger.add_file_handle(progress_file_handle)

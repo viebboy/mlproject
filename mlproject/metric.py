@@ -564,7 +564,7 @@ class CrossEntropy(Metric):
             labels = labels.squeeze(0)
 
         n_sample = labels.shape[self._batch_axis]
-        self._total_value += _CrossEntropyLoss(predictions, labels).item() * n_sample
+        self._total_value += _CrossEntropyLoss(predictions, labels.flatten()).item() * n_sample
         self._n_sample += n_sample
 
     def value(self):

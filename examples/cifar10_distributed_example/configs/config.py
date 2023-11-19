@@ -130,7 +130,7 @@ ALL_CONFIGS = {
     # optimizer
     'optimizer': ConfigValue('adamW'),
     # checkpoint freq
-    'checkpoint_freq': ConfigValue(1000), # save checkpoint every 20 minibatch
+    'checkpoint_freq': ConfigValue(None), # save checkpoint every 20 minibatch
     'print_freq': ConfigValue(200), # print loss value for every 10 minibatch
     'eval_freq': ConfigValue(1), # evaluate the metrics for every 1 epoch
     # max checkpoints

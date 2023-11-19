@@ -108,7 +108,7 @@ def get_CrossEntropy(weights=None):
             if W is None:
                 loss = loss + _CrossEntropyLoss(predictions, labels.flatten())
             else:
-                loss = loss + W * _CrossEntropyLoss(predictions, labels)
+                loss = loss + W * _CrossEntropyLoss(predictions, labels.flatten())
 
         return loss
 
