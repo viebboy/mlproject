@@ -140,7 +140,6 @@ def get_trainer(
         max_checkpoint=config["max_checkpoint"],
         use_progress_bar=config["use_progress_bar"],
         test_mode=config["test_mode"],
-        move_data_to_device=config["move_data_to_device"],
         retain_metric_objects=config["retain_metric_objects"],
     )
     return trainer

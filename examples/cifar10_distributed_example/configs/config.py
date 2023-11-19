@@ -137,13 +137,11 @@ ALL_CONFIGS = {
     'max_checkpoint': ConfigValue(10), # only retain the last 10 checkpoints
     # whether to use progress bar
     'use_progress_bar': ConfigValue(True), # whether to use progress bar in evaluation
-    # move data to device
-    'move_data_to_device': ConfigValue(True), # whether data generated from dataloader requires moving to device
     # retain metric objects
     'retain_metric_objects': ConfigValue(True), # if False, save only the metric values (not obj) in history
     # --------- dataset server config ------------
     # --------------------------------------------
-    'use_async_loader': ConfigValue(True), # whether to use dataset_server or Torch's dataloader
+    'use_async_loader': ConfigValue(False), # whether to use dataset_server or Torch's dataloader
     # options for train data
     'train_nb_worker': ConfigValue(1),
     'train_max_queue_size': ConfigValue(100),

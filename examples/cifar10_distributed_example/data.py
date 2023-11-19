@@ -84,6 +84,11 @@ def get_data_loader(config: dict, prefix: str):
     Returns:
         data loader object that allows iteration
     """
+    params = {
+        'data_dir': config['data_dir'],
+        'prefix': prefix,
+    }
+    dataset = Dataset(**params)
 
     return
 

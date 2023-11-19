@@ -128,6 +128,7 @@ class Trainer:
             num_nodes=num_nodes,
             precision=precision,
         )
+        cls.FABRIC.launch()
 
     def __init__(
         self,
@@ -250,7 +251,7 @@ class Trainer:
             raise RuntimeError(msg)
 
     def prepare_data(
-        self, model: torch.nn.Module, train_data: dict, val_data: dict, test_data: dict
+        self, train_data: dict, val_data: dict, test_data: dict
     ):
         """
         Setup for distributed training
