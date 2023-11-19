@@ -678,14 +678,24 @@ class Trainer:
         """
 
         for m in metrics:
-            values = self.FABRIC.all_gather(m.dump())
+            # dump the metric content to dictionary
+            m_content = m.dump()
+            # gather metric content from all processes
+            values = self.FABRIC.all_gather(m_content)
+
+            # if any field is not int, float or tensor, it will not be gathered
+            # so we need to replace it
+            for k, v in values.items():
+                if not isinstance(v, torch.Tensor):
+                    values[k] = [
+                        m_content[k],
+                    ] * self.FABRIC.world_size
             # values is a dictionary, each key holds a list of value
             # now unwrap into a list of dictionaries
             fields = list(values.keys())
-            nb_instance = len(values[fields[0]])
             # then reconstruct metric objects from all processes
             instances = []
-            for i in range(nb_instance):
+            for i in range(self.FABRIC.world_size):
                 metric_obj = copy.deepcopy(m)
                 serialized_values = {}
                 for field in fields:
