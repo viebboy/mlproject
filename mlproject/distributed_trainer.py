@@ -432,7 +432,7 @@ class Trainer:
         if self.FABRIC.world_size == 1:
             module = model._fabric_module
         else:
-            module = self.FABRIC._fabric_module.module
+            module = model._fabric_module.module
 
         # then dump it temporarily to disk
         torch.save(module, onnx_path)
@@ -681,7 +681,7 @@ class Trainer:
         else:
             total_minibatch = len(data["dataloader"])
 
-        if self.use_progress_bar:
+        if self.use_progress_bar and (self.sync_print or self.FABRIC.is_global_zero):
             loader = tqdm(
                 data["dataloader"],
                 desc=f"#Evaluating {dataset_name}: ",
