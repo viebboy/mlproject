@@ -938,7 +938,7 @@ class Trainer:
         optimizer_time,
         optimizer_step,
     ):
-        if self._sync_print:
+        if self.sync_print:
             # if we want to sync loss result accross processes then print
             # this option can slow down training
             avg_loss = self.accumulated_loss / self.accumulated_loss_counter
@@ -997,7 +997,10 @@ class Trainer:
             )
         )
 
-        self.logger.info("".join(print_content))
+        if self.sync_print:
+            self.logger.info("".join(print_content), id=[0])
+        else:
+            self.logger.info("".join(print_content), id=[self.FABRIC.global_rank])
 
         self.accumulated_loss_counter = 0
         self.accumulated_loss = 0
