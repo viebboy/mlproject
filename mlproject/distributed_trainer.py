@@ -316,9 +316,12 @@ class Trainer:
 
         # look for final checkpoint
         if self.has_final_artifacts():
-            self.logger.warning(f"final artifacts exist under {self.output_dir}")
-            self.logger.warning("no training was done")
-            self.logger.warning("if you want to retrain model, please remove them")
+            if self.FABRIC.is_global_zero:
+                print(
+                    f"Final artifacts exist under {self.output_dir}. "
+                    "No training was done. "
+                    "If you want to retrain model, please remove artifacts"
+                )
 
             # load performance
             with open(self.final_performance_file, "rb") as fid:
