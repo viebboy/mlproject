@@ -430,9 +430,9 @@ class Trainer:
 
         # get the original module
         if self.FABRIC.world_size == 1:
-            module = model._fabric_module
+            module = model._forward_module
         else:
-            module = model._fabric_module.module
+            module = model._forward_module.module
 
         # then dump it temporarily to disk
         torch.save(module, onnx_path)
@@ -862,7 +862,6 @@ class Trainer:
     def update_checkpoint(self, model, optimizer, epoch_ended):
         # only save checkpoint if global rank is zero
         if self.FABRIC.is_global_zero:
-            print(f"process id running checkpoint saving: {self.FABRIC.global_rank}")
             # put in eval mode
             model.eval()
 
@@ -924,9 +923,7 @@ class Trainer:
                     os.remove(onnx_files[idx])
 
         # barrier is called for every process
-        print(f"process id before barrier: {self.FABRIC.global_rank}")
         self.FABRIC.barrier()
-        print(f"process id after barrier: {self.FABRIC.global_rank}")
 
     def print_and_update(
         self,
