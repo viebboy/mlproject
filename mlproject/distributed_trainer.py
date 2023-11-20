@@ -795,7 +795,7 @@ class Trainer:
             self.accumulated_loss_counter += 1
 
             # update parameters when reaching accumulation step
-            if (self.cur_minibatch + 1 % self.grad_accumulation_step) == 0:
+            if (self.cur_minibatch + 1) % self.grad_accumulation_step == 0:
                 pre_optimizer_stamp = time.perf_counter()
                 optimizer.step()
                 optimizer.zero_grad()
