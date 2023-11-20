@@ -31,7 +31,6 @@ import plotly.express as px
 import time
 import numpy as np
 import tempfile
-from loguru import logger as guru_logger
 import dill
 from typing import Callable
 import copy
@@ -76,29 +75,39 @@ class Logger:
     def timestamp(self):
         return str(pd.Timestamp.now()).split(".")[0]
 
-    def info(self, msg):
-        print(f"{self.timestamp()} INFO: Process Global Rank: {self._id} | {msg}\n")
+    def info(self, msg, id=[0]):
+        if self._id in id:
+            print(f"{self.timestamp()} INFO: Process Global Rank: {self._id} | {msg}\n")
         for fid in self.file_handles:
             fid.write(
                 f"{self.timestamp()} INFO: Process Global Rank: {self._id} | {msg}\n"
             )
 
-    def debug(self, msg):
-        print(f"{self.timestamp()} DEBUG: Process Global Rank: {self._id} | {msg}\n")
+    def debug(self, msg, id=[0]):
+        if self._id in id:
+            print(
+                f"{self.timestamp()} DEBUG: Process Global Rank: {self._id} | {msg}\n"
+            )
         for fid in self.file_handles:
             fid.write(
                 f"{self.timestamp()} DEBUG: Process Global Rank: {self._id} | {msg}\n"
             )
 
-    def warning(self, msg):
-        print(f"{self.timestamp()} WARNING: Process Global Rank: {self._id} | {msg}\n")
+    def warning(self, msg, id=[0]):
+        if self._id in id:
+            print(
+                f"{self.timestamp()} WARNING: Process Global Rank: {self._id} | {msg}\n"
+            )
         for fid in self.file_handles:
             fid.write(
                 f"{self.timestamp()} WARNING: Process Global Rank: {self._id} | {msg}\n"
             )
 
-    def error(self, msg):
-        print(f"{self.timestamp()} ERROR: Process Global Rank: {self._id} | {msg}\n")
+    def error(self, msg, id=[0]):
+        if self._id in id:
+            print(
+                f"{self.timestamp()} ERROR: Process Global Rank: {self._id} | {msg}\n"
+            )
         for fid in self.file_handles:
             fid.write(
                 f"{self.timestamp()} ERROR: Process Global Rank: {self._id} | {msg}\n"
@@ -137,11 +146,13 @@ class Trainer:
         lr_scheduler: Callable = get_cosine_lr_scheduler(1e-3, 1e-5),
         optimizer: str = "adam",
         weight_decay: float = 1e-4,
+        grad_accumulation_step: int = 1,
         log_dir: str = None,
         checkpoint_freq: int = 10,
         max_checkpoint: int = 10,
         eval_freq: int = 1,
         print_freq: int = 10,
+        synchronized_print: bool = True,
         use_progress_bar: bool = True,
         test_mode: bool = False,
         retain_metric_objects: bool = True,
@@ -168,11 +179,14 @@ class Trainer:
         self.lr_scheduler = lr_scheduler
         self.optimizer = optimizer
         self.weight_decay = weight_decay
+        self.grad_accumulation_step = grad_accumulation_step
         self.log_dir = log_dir
         self.checkpoint_freq = checkpoint_freq
         self.max_checkpoint = max_checkpoint
         self.eval_freq = eval_freq
-        self.print_freq = print_freq
+        # print frequency must be at least the grad_accumulation_step
+        self.print_freq = max(print_freq, grad_accumulation_step)
+        self.sync_print = synchronized_print
         self.use_progress_bar = use_progress_bar
         self.test_mode = test_mode
         self.retain_metric_objects = retain_metric_objects
@@ -350,6 +364,8 @@ class Trainer:
                 # evaluation
                 if self.checkpoint_freq is None:
                     self.update_checkpoint(model, optimizer, False)
+                    # remember to to convert model to train stage
+                    model.train()
 
         # load the best model based on validation performance if exist, or train performance
         self.load_best(model)
@@ -752,6 +768,8 @@ class Trainer:
         backward_time = 0
         data_prep_time = 0
         profile_counter = 0
+        optimizer_time = 0
+        optimizer_step = 0
 
         # important to switch to train mode
         model.train()
@@ -766,15 +784,24 @@ class Trainer:
             pre_forward_stamp = time.perf_counter()
             predictions = model(inputs)
             post_forward_stamp = time.perf_counter()
-            loss = self.loss_function(predictions, labels)
-            self.FABRIC.backward(loss)
-            optimizer.step()
-            backward_stamp = time.time()
-            optimizer.zero_grad()
 
-            # accumulate loss function
+            # divide loss by grad_accumulation_step
+            loss = self.loss_function(predictions, labels) / self.grad_accumulation_step
+            self.FABRIC.backward(loss)
+            backward_stamp = time.perf_counter()
+
+            # accumulate loss value for printing and checkpointing
             self.accumulated_loss += loss.item()
             self.accumulated_loss_counter += 1
+
+            # update parameters when reaching accumulation step
+            if (self.cur_minibatch + 1 % self.grad_accumulation_step) == 0:
+                pre_optimizer_stamp = time.perf_counter()
+                optimizer.step()
+                optimizer.zero_grad()
+                post_optimizer_stamp = time.perf_counter()
+                optimizer_time += post_optimizer_stamp - pre_optimizer_stamp
+                optimizer_step += 1
 
             # update information for profiling
             forward_time += post_forward_stamp - pre_forward_stamp
@@ -801,6 +828,8 @@ class Trainer:
                     forward_time,
                     backward_time,
                     profile_counter,
+                    optimizer_time,
+                    optimizer_step,
                 )
                 # reset
                 total_time = 0
@@ -808,6 +837,8 @@ class Trainer:
                 forward_time = 0
                 backward_time = 0
                 profile_counter = 0
+                optimizer_time = 0
+                optimizer_step = 0
 
             epoch_ended = self.minibatch_idx == self.total_minibatch
             if (
@@ -904,9 +935,21 @@ class Trainer:
         forward_time,
         backward_time,
         profile_counter,
+        optimizer_time,
+        optimizer_step,
     ):
-        avg_loss = self.accumulated_loss / self.accumulated_loss_counter
-        self.loss_curve.write("{},{}\n".format(self.cur_minibatch, avg_loss))
+        if self._sync_print:
+            # if we want to sync loss result accross processes then print
+            # this option can slow down training
+            avg_loss = self.accumulated_loss / self.accumulated_loss_counter
+            avg_loss = self.FABRIC.all_reduce(avg_loss)
+            if self.FABRIC.is_global_zero:
+                self.loss_curve.write("{},{}\n".format(self.cur_minibatch, avg_loss))
+        else:
+            # otherwise, all processes write to the same loss curve file
+            # we will accumulate and reduce when plotting the loss curve
+            avg_loss = self.accumulated_loss / self.accumulated_loss_counter
+            self.loss_curve.write("{},{}\n".format(self.cur_minibatch, avg_loss))
 
         # find number of digits of total train minibatch
         nb_digit = len(str(self.total_train_minibatch))
@@ -933,6 +976,10 @@ class Trainer:
         print_content.append(
             "backward={:.3f}, ".format(backward_time / profile_counter),
         )
+        if optimizer_step > 0:
+            print_content.append(
+                "optimizer step={:.3f}, ".format(optimizer_time / optimizer_step),
+            )
 
         estimated_time = self.get_estimated_time()
         print_content.append(

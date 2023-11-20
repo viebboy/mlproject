@@ -141,5 +141,7 @@ def get_trainer(
         use_progress_bar=config["use_progress_bar"],
         test_mode=config["test_mode"],
         retain_metric_objects=config["retain_metric_objects"],
+        grad_accumulation_step=config["grad_accumulation_step"],
+        synchronized_print=config["synchronized_print"],
     )
     return trainer
