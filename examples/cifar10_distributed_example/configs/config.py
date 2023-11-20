@@ -119,7 +119,7 @@ ALL_CONFIGS = {
     # -------trainer config ----------
     # --------------------------------
     # number of epochs
-    "n_epoch": ConfigValue(10),
+    "n_epoch": ConfigValue(3),
     # loss function
     "loss_function": ConfigValue(CrossEntropyLoss),  # define the loss function here
     # metrics:

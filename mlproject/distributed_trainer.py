@@ -414,8 +414,10 @@ class Trainer:
             self.logger.info(f"save final model in {self.final_checkpoint_file}")
         self.FABRIC.barrier()
 
-        # save onnx checkpoint
-        self.export_to_onnx(model, self.sample_input, self.onnx_checkpoint_file)
+        # save onnx checkpoint, only rank 0 does this
+        if self.FABRIC.is_global_zero:
+            self.export_to_onnx(model, self.sample_input, self.onnx_checkpoint_file)
+        self.FABRIC.barrier()
 
         if isinstance(self.logger, Logger):
             self.logger.close()
@@ -681,7 +683,11 @@ class Trainer:
         else:
             total_minibatch = len(data["dataloader"])
 
-        if self.use_progress_bar and (self.sync_print or self.FABRIC.is_global_zero):
+        # note that we only use progbar if global rank = 0
+        # for other processes, we only use progbar if synchronized_print is false
+        if self.use_progress_bar and (
+            not self.sync_print or self.FABRIC.is_global_zero
+        ):
             loader = tqdm(
                 data["dataloader"],
                 desc=f"#Evaluating {dataset_name}: ",
@@ -745,7 +751,10 @@ class Trainer:
                 metric_obj = copy.deepcopy(m)
                 serialized_values = {}
                 for field in fields:
-                    serialized_values[field] = values[field][i]
+                    if isinstance(values[field][i], torch.Tensor):
+                        serialized_values[field] = values[field][i].item()
+                    else:
+                        serialized_values[field] = values[field][i]
                 metric_obj.load(serialized_values)
                 instances.append(metric_obj)
 
