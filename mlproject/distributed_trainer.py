@@ -427,41 +427,6 @@ class Trainer:
 
         return performance
 
-    def export_to_onnx(self, model, sample_input, onnx_path):
-        if sample_input is None:
-            raise RuntimeError(
-                "sample_input is None; exporting a model to ONNX requires sample input"
-            )
-
-        # get the original module
-        if self.FABRIC.world_size == 1:
-            module = model._forward_module
-        else:
-            module = model._forward_module.module
-
-        # then dump it temporarily to disk
-        torch.save(module, onnx_path)
-        # load again to get a cpu instance
-        # we need to avoid exporting the current training instance
-        # because it messes up with the training loop and simply
-        # makes distributed training stalled
-        cpu_model = torch.load(onnx_path, map_location=torch.device("cpu"))
-        os.remove(onnx_path)
-
-        # now both sample input and cpu model are on cpu, simply export
-        torch.onnx.export(
-            cpu_model,
-            sample_input,
-            onnx_path,
-            opset_version=11,
-            export_params=True,
-            do_constant_folding=True,
-            input_names=["input"],
-            output_names=["output"],
-            dynamic_axes={"input": {0: "batch_size"}, "output": {0: "batch_size"}},
-        )
-        self.logger.info(f"save model in ONNX format in {onnx_path}")
-
     def visualize_performance(self, performance):
         """
         visualize training curves
@@ -667,63 +632,6 @@ class Trainer:
 
         return optimizer
 
-    def eval(self, model: torch.nn.Module, data: dict, dataset_name: str):
-        if data is None or data["dataloader"] is None:
-            return {}
-
-        self.logger.info(f"evaluating {dataset_name}...")
-        model.eval()
-
-        # reset the metric objects
-        for m in self.metrics:
-            m.reset()
-
-        # create fresh copy of metric objects
-        metrics = copy.deepcopy(self.metrics)
-
-        if self.test_mode:
-            total_minibatch = min(self.n_test_minibatch, len(data["dataloader"]))
-        else:
-            total_minibatch = len(data["dataloader"])
-
-        # note that we only use progbar if global rank = 0
-        # for other processes, we only use progbar if synchronized_print is false
-        if self.use_progress_bar and (
-            not self.sync_print or self.FABRIC.is_global_zero
-        ):
-            loader = tqdm(
-                data["dataloader"],
-                desc=f"#Evaluating {dataset_name}: ",
-                ncols=120,
-                ascii=True,
-            )
-        else:
-            loader = data["dataloader"]
-
-        with torch.no_grad():
-            for minibatch_idx, (inputs, labels) in enumerate(loader):
-                if minibatch_idx == total_minibatch:
-                    break
-
-                predictions = model(inputs)
-                for m in metrics:
-                    m.update(predictions=predictions, labels=labels)
-
-        # gather the values from all processes
-        # note here that we are collecting the metric object
-        # not just the value
-        metrics = self.gather_metrics(metrics)
-
-        performance = {}
-        if self.retain_metric_objects:
-            for m in metrics:
-                performance[m.name()] = m
-        else:
-            for m in metrics:
-                performance[m.name()] = m.value()
-
-        return performance
-
     def gather_metrics(self, metrics: list):
         """
         Gather metric objects from all processes
@@ -870,6 +778,98 @@ class Trainer:
 
         # reset index within an epoch
         self.minibatch_idx = 0
+
+    def eval(self, model: torch.nn.Module, data: dict, dataset_name: str):
+        if data is None or data["dataloader"] is None:
+            return {}
+
+        self.logger.info(f"evaluating {dataset_name}...")
+        model.eval()
+
+        # reset the metric objects
+        for m in self.metrics:
+            m.reset()
+
+        # create fresh copy of metric objects
+        metrics = copy.deepcopy(self.metrics)
+
+        if self.test_mode:
+            total_minibatch = min(self.n_test_minibatch, len(data["dataloader"]))
+        else:
+            total_minibatch = len(data["dataloader"])
+
+        # note that we only use progbar if global rank = 0
+        # for other processes, we only use progbar if synchronized_print is false
+        if self.use_progress_bar and (
+            not self.sync_print or self.FABRIC.is_global_zero
+        ):
+            loader = tqdm(
+                data["dataloader"],
+                desc=f"#Evaluating {dataset_name}: ",
+                ncols=120,
+                ascii=True,
+            )
+        else:
+            loader = data["dataloader"]
+
+        with torch.no_grad():
+            for minibatch_idx, (inputs, labels) in enumerate(loader):
+                if minibatch_idx == total_minibatch:
+                    break
+
+                predictions = model(inputs)
+                for m in metrics:
+                    m.update(predictions=predictions, labels=labels)
+
+        # gather the values from all processes
+        # note here that we are collecting the metric object
+        # not just the value
+        metrics = self.gather_metrics(metrics)
+
+        performance = {}
+        if self.retain_metric_objects:
+            for m in metrics:
+                performance[m.name()] = m
+        else:
+            for m in metrics:
+                performance[m.name()] = m.value()
+
+        return performance
+
+    def export_to_onnx(self, model, sample_input, onnx_path):
+        if sample_input is None:
+            raise RuntimeError(
+                "sample_input is None; exporting a model to ONNX requires sample input"
+            )
+
+        # get the original module
+        if self.FABRIC.world_size == 1:
+            module = model._forward_module
+        else:
+            module = model._forward_module.module
+
+        # then dump it temporarily to disk
+        torch.save(module, onnx_path)
+        # load again to get a cpu instance
+        # we need to avoid exporting the current training instance
+        # because it messes up with the training loop and simply
+        # makes distributed training stalled
+        cpu_model = torch.load(onnx_path, map_location=torch.device("cpu"))
+        os.remove(onnx_path)
+
+        # now both sample input and cpu model are on cpu, simply export
+        torch.onnx.export(
+            cpu_model,
+            sample_input,
+            onnx_path,
+            opset_version=11,
+            export_params=True,
+            do_constant_folding=True,
+            input_names=["input"],
+            output_names=["output"],
+            dynamic_axes={"input": {0: "batch_size"}, "output": {0: "batch_size"}},
+        )
+        self.logger.info(f"save model in ONNX format in {onnx_path}")
 
     def update_checkpoint(self, model, optimizer, epoch_ended):
         # only save checkpoint if global rank is zero
