@@ -258,6 +258,17 @@ class Trainer:
                 test_data["dataloader"]
             )
 
+    def prepare_model(self, model, optimizer):
+        # fabric prep
+        model, optimizer = self.FABRIC.setup(model, optimizer)
+        # then make sure params of optimizer are on correct device
+        for state in optimizer.state.values():
+            for k, v in state.items():
+                if torch.is_tensor(v):
+                    state[k] = v.to(self.FABRIC.device)
+
+        return model, optimizer
+
     def fit(
         self,
         model: torch.nn.Module,
@@ -311,8 +322,8 @@ class Trainer:
         self.load_from_checkpoint(model, optimizer)
 
         # prepare model and optimizer for distributed training
-        # here model is moved to correct device
-        model, optimizer = self.FABRIC.setup(model, optimizer)
+        # here model is moved to correct device, optimizer params are also moved correctly
+        model, optimizer = self.prepare_model(model, optimizer)
 
         self.start_time = time.time()
         self.start_minibatch_idx = self.cur_minibatch
@@ -401,8 +412,24 @@ class Trainer:
                 "sample_input is None; exporting a model to ONNX requires sample input"
             )
 
+        # get the original module
+        if self.FABRIC.world_size == 1:
+            module = model._fabric_module
+        else:
+            module = self.FABRIC._fabric_module.module
+
+        # then dump it temporarily to disk
+        torch.save(module, onnx_path)
+        # load again to get a cpu instance
+        # we need to avoid exporting the current training instance
+        # because it messes up with the training loop and simply
+        # makes distributed training stalled
+        cpu_model = torch.load(onnx_path, map_location=torch.device("cpu"))
+        os.remove(onnx_path)
+
+        # now both sample input and cpu model are on cpu, simply export
         torch.onnx.export(
-            model,
+            cpu_model,
             sample_input,
             onnx_path,
             opset_version=11,
@@ -677,6 +704,9 @@ class Trainer:
         Gather metric objects from all processes
         """
 
+        if self.FABRIC.world_size == 1:
+            return metrics
+
         for m in metrics:
             # dump the metric content to dictionary
             m_content = m.dump()
@@ -761,7 +791,7 @@ class Trainer:
 
             # record the sample input for ONNX export if user doesnt provide
             if self.sample_input is None:
-                self.sample_input = inputs
+                self.sample_input = inputs.cpu()
 
             if (self.cur_minibatch % self.print_freq) == 0:
                 # printing if needed
@@ -1038,23 +1068,16 @@ class Trainer:
 
         self.accumulated_loss_counter = 0
         self.accumulated_loss = 0
+        self.loss_curve = open(os.path.join(self.output_dir, "loss_curve.txt"), "a")
 
         if checkpoint is None:
             self.epoch_idx = 0
             self.history = {}
             self.history_indices = []
-            self.loss_curve = open(os.path.join(self.output_dir, "loss_curve.txt"), "w")
             self.cur_minibatch = 0
             self.minibatch_idx = 0
-            progress_file_handle = open(
-                os.path.join(self.output_dir, "progress.txt"), "w"
-            )
         else:
             # set the epoch index and previous metric values
-            progress_file_handle = open(
-                os.path.join(self.output_dir, "progress.txt"), "a"
-            )
-            self.loss_curve = open(os.path.join(self.output_dir, "loss_curve.txt"), "a")
             self.cur_minibatch = checkpoint["cur_minibatch"]
             self.minibatch_idx = checkpoint["minibatch_idx"]
             self.epoch_idx = checkpoint["epoch_idx"]
@@ -1072,4 +1095,5 @@ class Trainer:
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
         self.logger = Logger(id=self.FABRIC.global_rank)
+        progress_file_handle = open(os.path.join(self.output_dir, "progress.txt"), "a")
         self.logger.add_file_handle(progress_file_handle)
