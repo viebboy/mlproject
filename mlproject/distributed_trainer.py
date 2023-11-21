@@ -971,7 +971,7 @@ class Trainer:
 
         print_content = [
             "minibatch: {} / {}| ".format(cur_minibatch, self.total_train_minibatch),
-            "epoch: {}| ".format(epoch),
+            "epoch: {} / {}| ".format(epoch, self.n_epoch),
             "loss: {}| ".format(avg_loss),
             "avg latency per minibatch (in seconds): all={:.3f}, ".format(
                 total_time / profile_counter
