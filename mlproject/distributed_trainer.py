@@ -855,6 +855,7 @@ class Trainer:
         # because it messes up with the training loop and simply
         # makes distributed training stalled
         cpu_model = torch.load(onnx_path, map_location=torch.device("cpu"))
+        cpu_model.eval()
         os.remove(onnx_path)
 
         # now both sample input and cpu model are on cpu, simply export
