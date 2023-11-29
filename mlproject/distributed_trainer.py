@@ -21,6 +21,7 @@ Apache 2.0 License
 from __future__ import annotations
 from typing import Union
 import torch
+from torch.utils.data import DataLoader as TorchDataLoader
 import torch.optim as optim
 import lightning
 from tqdm import tqdm
@@ -36,6 +37,7 @@ from typing import Callable
 import copy
 
 from mlproject.metric import Metric
+from swift_serve import Dataloader as SwiftDataLoader
 
 
 def get_cosine_lr_scheduler(init_lr, final_lr):
@@ -259,18 +261,41 @@ class Trainer:
         """
         Setup for distributed training
         """
-        train_data["dataloader"] = self.FABRIC.setup_dataloaders(
-            train_data["dataloader"]
-        )
-        if val_data is not None and val_data["dataloader"] is not None:
-            val_data["dataloader"] = self.FABRIC.setup_dataloaders(
-                val_data["dataloader"]
+
+        if isinstance(train_data["dataloader"], TorchDataLoader):
+            train_data["dataloader"] = self.FABRIC.setup_dataloaders(
+                train_data["dataloader"]
             )
+        elif isinstance(train_data["dataloader"], SwiftDataLoader):
+            train_data["dataloader"].start(
+                consumer_index=self.FABRIC.global_rank, device=self.FABRIC.device
+            )
+        else:
+            raise RuntimeError("Only support Dataloader from torch or swift_serve")
+
+        if val_data is not None and val_data["dataloader"] is not None:
+            if isinstance(val_data["dataloader"], TorchDataLoader):
+                val_data["dataloader"] = self.FABRIC.setup_dataloaders(
+                    val_data["dataloader"]
+                )
+            elif isinstance(val_data["dataloader"], SwiftDataLoader):
+                val_data["dataloader"].start(
+                    consumer_index=self.FABRIC.global_rank, device=self.FABRIC.device
+                )
+            else:
+                raise RuntimeError("Only support Dataloader from torch or swift_serve")
 
         if test_data is not None and test_data["dataloader"] is not None:
-            test_data["dataloader"] = self.FABRIC.setup_dataloaders(
-                test_data["dataloader"]
-            )
+            if isinstance(test_data["dataloader"], TorchDataLoader):
+                test_data["dataloader"] = self.FABRIC.setup_dataloaders(
+                    test_data["dataloader"]
+                )
+            elif isinstance(test_data["dataloader"], SwiftDataLoader):
+                test_data["dataloader"].start(
+                    consumer_index=self.FABRIC.global_rank, device=self.FABRIC.device
+                )
+            else:
+                raise RuntimeError("Only support Dataloader from torch or swift_serve")
 
     def prepare_model(self, model, optimizer):
         # fabric prep
