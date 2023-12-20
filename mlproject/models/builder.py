@@ -22,13 +22,7 @@ import torch.nn as nn
 import numpy as np
 from collections import OrderedDict
 from loguru import logger
-from mlproject.models.nodes import (
-    Conv2d,
-    ConvBnAct,
-    Sum,
-    get_supported_node_names,
-    build_node,
-)
+from mlproject.models.nodes import get_supported_node_names, build_node
 
 
 class Builder(nn.Module):
@@ -38,9 +32,6 @@ class Builder(nn.Module):
 
         self.build_nodes(nodes)
         self.node_metadata, self.output_names = self.build_node_metadata(nodes)
-
-    def get_supported_nodes(self):
-        return ['conv-bn-act', 'conv', 'bn', 'act', 'pool2x2', 'sum']
 
     def verify_config(self, nodes):
         supported_nodes = get_supported_node_names()
