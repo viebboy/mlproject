@@ -3,17 +3,16 @@ entry.py: main training orchestration
 -------------------------------------
 
 
-* Copyright: 2022 Dat Tran
+* Copyright: 2023 Dat Tran
 * Authors: Dat Tran (viebboy@gmail.com)
-* Date: 2022-01-01
+* Date: 2023-12-20
 * Version: 0.0.1
 
-This is part of the MLProject (github.com/viebboy/mlproject)
+This is part of the cifar10_distributed project
 
 License
 -------
 Apache 2.0 License
-
 
 """
 
@@ -30,6 +29,7 @@ from mlproject.config import get_config_string
 
 from data import get_torch_loader, get_swift_loader, dispose_data_loader
 from trainer import get_trainer
+from models import DenseNet
 
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -193,7 +193,7 @@ def main(
         try:
             # -------------- MODEL --------------------------------
             # TODO: create model here
-            model = None
+            model = DenseNet(**config["model_config"])
             # -----------------------------------------------------
 
             # create tensorboard logger here
@@ -211,7 +211,9 @@ def main(
                 device=device,
                 tensorboard_logger=tensorboard_logger,
                 logger_prefix=logger_prefix,
-                load_best=config["load_best"],
+                load_best=config[
+                    "load_best"
+                ],  # if True, will attempt to load the best checkpoint based on train/val perf
             )
         except Exception as error:
             dispose_data_loader(train_loader, val_loader, test_loader)

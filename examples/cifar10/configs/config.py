@@ -3,17 +3,16 @@ config.py: a set of experiment configurations
 ---------------------------------------------
 
 
-* Copyright: 2022 Dat Tran
+* Copyright: 2023 Dat Tran
 * Authors: Dat Tran (viebboy@gmail.com)
-* Date: 2022-01-01
+* Date: 2023-12-20
 * Version: 0.0.1
 
-This is part of the MLProject (github.com/viebboy/mlproject)
+This is part of the cifar10_distributed project
 
 License
 -------
 Apache 2.0 License
-
 
 """
 
@@ -21,12 +20,10 @@ import pprint
 import os
 
 from mlproject.config import ConfigValue, create_all_config as _create_all_config
-from mlproject.loss import MSE, MAE, CrossEntropy as CrossEntropyLoss
 
-# TODO: put the name of your set of experiments here
 # and some description
-NAME = ""
-DESC = ""
+NAME = "cifar10_distributed"
+DESC = "cifar10_distributed"
 
 
 """
@@ -66,7 +63,7 @@ ConfigValue() is essential a container that contains all possible values for a g
 
 ALL_CONFIGS = {
     # number of trials to repeat a particular config
-    "nb_trial": ConfigValue(5),
+    "nb_trial": ConfigValue(1),
     # ------- model config ----------------
     "model_configs": ConfigValue(
         MODEL1_CONFIG, MODEL2_CONFIG
@@ -81,8 +78,6 @@ ALL_CONFIGS = {
         OUTPUT_DIR
     ),  # this is the output dir that contains results from all exps
     # ----------------------------------------
-    # common config for data
-    "nb_shard": ConfigValue(32),  # sharding is used in mlproject.data.BinaryBlob
     # batch size
     "batch_size": ConfigValue(256),
     #
@@ -90,12 +85,6 @@ ALL_CONFIGS = {
     # --------------------------------
     # number of epochs
     "n_epoch": ConfigValue(300),
-    # loss function
-    "loss_function": ConfigValue(),  # define the loss function here
-    # metrics:
-    "metrics": ConfigValue(),  # define the metrics here
-    "monitor_metric": ConfigValue(),  # define the monitor metric here
-    "monitor_direction": ConfigValue(),  # monitor direction: lower means lower is better, similar for higher
     # epoch index
     "checkpoint_idx": ConfigValue(
         -1
@@ -132,7 +121,7 @@ ALL_CONFIGS = {
     # --------- swift loader config if using swift loader ------------
     # ----------------------------------------------------------------
     "use_swift_loader": ConfigValue(True),
-    "worker_per_consumer": ConfigValue(4),
+    "worker_per_consumer": ConfigValue(2),
 }
 
 

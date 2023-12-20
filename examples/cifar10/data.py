@@ -3,32 +3,56 @@ data.py: data handling implementation
 -------------------------------------
 
 
-* Copyright: 2022 Dat Tran
+* Copyright: 2023 Dat Tran
 * Authors: Dat Tran (viebboy@gmail.com)
-* Date: 2022-01-01
+* Date: 2023-12-20
 * Version: 0.0.1
 
-This is part of the MLProject (github.com/viebboy/mlproject)
+This is part of the cifar10_distributed project
 
 License
 -------
 Apache 2.0 License
 
-
 """
 
 from __future__ import annotations
-import numpy as np
-import os
-from loguru import logger
-import joblib
-import dill
-import json
-import random
-from tqdm import tqdm
 import torch
-from torch.utils.data import DataLoader as TorchDataLoader
-from torch.utils.data import Dataset as TorchDataset
+from torchvision.datasets import CIFAR10
+from torchvision import transforms as T
+from swift_loader import SwiftLoader
+
+
+class Dataset(CIFAR10):
+    """
+    Inherit from torchvision CIFAR10 dataset to provide keyword argument construction
+    """
+
+    def __init__(self, **kwargs):
+        if kwargs["prefix"] == "train":
+            train = True
+        else:
+            train = False
+        transforms = T.Compose(
+            [
+                T.ToTensor(),
+                T.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+            ]
+        )
+        super().__init__(
+            root=kwargs["data_dir"], train=train, transform=transforms, download=True
+        )
+
+    def __getitem__(self, i: int):
+        x, y = super().__getitem__(i)
+        return (
+            x,
+            torch.Tensor(
+                [
+                    y,
+                ]
+            ).long(),
+        )
 
 
 def dispose_data_loader(*args):
@@ -49,8 +73,7 @@ def get_torch_loader(config: dict, prefix: str):
     Returns:
         data loader object that allows iteration
     """
-
-    return
+    raise NotImplementedError()
 
 
 def get_swift_loader(config: dict, prefix: str):
@@ -66,10 +89,11 @@ def get_swift_loader(config: dict, prefix: str):
     """
     from swift_loader import SwiftDataLoader
 
-    # TODO: construct a dictionary of dataset parameters here
-    dataset_kwargs = {}
-    # TODO: put the name of dataset class here
-    dataset_class = None
+    dataset_kwargs = {
+        "data_dir": config["data_dir"],
+        "prefix": prefix,
+    }
+    dataset_class = Dataset
 
     # then create the loader
     loader = SwiftDataLoader(
@@ -85,5 +109,4 @@ def get_swift_loader(config: dict, prefix: str):
 
 
 if __name__ == "__main__":
-    # TODO: test your custom dataset and loader here
     pass

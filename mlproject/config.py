@@ -26,6 +26,7 @@ class ConfigValue(object):
     """
     Configuration abstraction used in project template
     """
+
     def __init__(self, *argv):
         self._value = []
         for v in argv:
@@ -64,36 +65,46 @@ def create_all_config(config_set):
 
 def print_all_config(configs):
     for idx, item in enumerate(configs):
-        msg = f'config_index={idx}'
-        print('-' * len(msg))
+        msg = f"config_index={idx}"
+        print("-" * len(msg))
         print(msg)
-        print('-' * len(msg))
+        print("-" * len(msg))
         pprint.pprint(item)
 
 
 def cut_string(text, max_length=120):
     outputs = []
     current_line = []
-    words = text.split(' ')
+    words = text.split(" ")
     for word in words:
-        if len(' '.join(current_line + [word,])) < max_length:
+        if (
+            len(
+                " ".join(
+                    current_line
+                    + [
+                        word,
+                    ]
+                )
+            )
+            < max_length
+        ):
             current_line.append(word)
         else:
-            outputs.append(' '.join(current_line))
+            outputs.append(" ".join(current_line))
             current_line = []
 
     if len(current_line) > 0:
-        outputs.append(' '.join(current_line))
+        outputs.append(" ".join(current_line))
 
-    return '\n'.join(outputs) + '\n'
+    return "\n".join(outputs) + "\n"
 
 
-def get_config_string(config: dict, config_index: int):
-    config_string = ''
-    config_string += f'CONFIGURATION INDEX: {config_index}\n'
-    config_string += f'--------------------------------------\n'
+def get_config_string(config: dict):
+    config_string = ""
+    config_string += f"CONFIGURATION INDEX: {config['config_index']}\n"
+    config_string += "--------------------------------------\n"
     names = list(config.keys())
     table = [[name, cut_string(str(config[name]))] for name in names]
-    table = tabulate(table, headers=['Config Name', 'Config Value'])
+    table = tabulate(table, headers=["Config Name", "Config Value"])
     config_string += table
     return config_string

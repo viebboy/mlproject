@@ -1,0 +1,15 @@
+{
+  "project_name_raw": "cifar10_distributed",
+  "project_name": "cifar10_distributed",
+  "company": "Dat Tran",
+  "authors": [
+    {
+      "name": "Dat Tran",
+      "emails": [
+        "viebboy@gmail.com"
+      ]
+    }
+  ],
+  "license_title": "Apache 2.0 License",
+  "year": "2023"
+}

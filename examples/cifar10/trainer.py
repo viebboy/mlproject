@@ -3,53 +3,31 @@ trainer.py: custom trainer goes here
 ------------------------------------
 
 
-* Copyright: 2022 Dat Tran
+* Copyright: 2023 Dat Tran
 * Authors: Dat Tran (viebboy@gmail.com)
-* Date: 2022-01-01
+* Date: 2023-12-20
 * Version: 0.0.1
 
-This is part of the MLProject (github.com/viebboy/mlproject)
+This is part of the cifar10_distributed project
 
 License
 -------
 Apache 2.0 License
 
-
 """
 
 import torch
-import torch.optim as optim
 from tqdm import tqdm
 import os
-import sys
-from glob import glob
-import pandas as pd
-import plotly.express as px
 import time
-import numpy as np
-import tempfile
-from loguru import logger
-import dill
-from typing import Callable
 import copy
-import shutil
 
 from mlproject.metric import (
-    MSE,
-    MAE,
     Accuracy,
     CrossEntropy,
-    F1,
-    Precision,
-    Recall,
-    MetricFromLoss,
-    NestedMetric,
 )
 from mlproject.loss import (
-    compose_losses_to_callable,
     get_CrossEntropy,
-    get_MSE,
-    get_MAE,
 )
 from mlproject.distributed_trainer import (
     get_cosine_lr_scheduler,
@@ -278,18 +256,16 @@ def get_trainer(config: dict, accelerator: str):
     else:
         raise RuntimeError(f"lr scheduler {config['lr_scheduler']} is not supported")
 
-    # TODO: parse loss function and metrics here
-
     # this basically setups fabric
     Trainer.setup(accelerator=accelerator)
 
     trainer = Trainer(
         n_epoch=config["n_epoch"],
         output_dir=config["output_dir"],
-        loss_function=config["loss_function"],
-        metrics=config["metrics"],
-        monitor_metric=config["monitor_metric"],
-        monitor_direction=config["monitor_direction"],
+        loss_function=get_CrossEntropy(),
+        metrics=[CrossEntropy(name="cross_entropy"), Accuracy(name="acc")],
+        monitor_metric="acc",
+        monitor_direction="higher",
         checkpoint_idx=config["checkpoint_idx"],
         lr_scheduler=lr_scheduler,
         optimizer=config["optimizer"],

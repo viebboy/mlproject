@@ -149,7 +149,7 @@ class Trainer:
         optimizer: str = "adam",
         weight_decay: float = 1e-4,
         grad_accumulation_step: int = 1,
-        log_dir: str = None,
+        checkpoint_dir: str = None,
         checkpoint_freq: int = 10,
         max_checkpoint: int = 10,
         eval_freq: int = 1,
@@ -182,7 +182,7 @@ class Trainer:
         self.optimizer = optimizer
         self.weight_decay = weight_decay
         self.grad_accumulation_step = grad_accumulation_step
-        self.log_dir = log_dir
+        self.checkpoint_dir = checkpoint_dir
         self.checkpoint_freq = checkpoint_freq
         self.max_checkpoint = max_checkpoint
         self.eval_freq = eval_freq
@@ -228,15 +228,15 @@ class Trainer:
             self.output_dir, "final_performance.dill"
         )
 
-    def prepare_log_dir(self):
-        if self.log_dir in ["", None]:
-            self.log_dir_obj = tempfile.TemporaryDirectory()
-            self.log_dir = self.log_dir_obj.name
+    def prepare_checkpoint_dir(self):
+        if self.checkpoint_dir in ["", None]:
+            self.checkpoint_dir_obj = tempfile.TemporaryDirectory()
+            self.checkpoint_dir = self.checkpoint_dir_obj.name
         else:
-            self.log_dir_obj = None
+            self.checkpoint_dir_obj = None
 
-        if not os.path.exists(self.log_dir):
-            os.makedirs(self.log_dir, exist_ok=True)
+        if not os.path.exists(self.checkpoint_dir):
+            os.makedirs(self.checkpoint_dir, exist_ok=True)
 
     def has_final_artifacts(self):
         has_pt_ckpt = os.path.exists(self.final_checkpoint_file)
@@ -316,6 +316,7 @@ class Trainer:
         test_data: dict = None,
         tensorboard_logger=None,
         logger_prefix="",
+        load_best: bool = True,
     ):
         if self.FABRIC is None:
             raise RuntimeError(
@@ -354,7 +355,7 @@ class Trainer:
 
             return performance
 
-        self.prepare_log_dir()
+        self.prepare_checkpoint_dir()
 
         model.float()
         optimizer = self.get_optimizer(model)
@@ -396,7 +397,8 @@ class Trainer:
                     model.train()
 
         # load the best model based on validation performance if exist, or train performance
-        self.load_best(model)
+        if load_best:
+            self.load_best(model)
 
         # eval this best model
         self.logger.info("evaluating performance of the final model...")
@@ -409,8 +411,8 @@ class Trainer:
         self.print_metrics(final_test_metrics, "final_test")
 
         # clean up temp dir
-        if self.log_dir_obj is not None:
-            self.log_dir_obj.cleanup()
+        if self.checkpoint_dir_obj is not None:
+            self.checkpoint_dir_obj.cleanup()
 
         performance_curves = {}
         for key, value_list in self.history.items():
@@ -554,15 +556,18 @@ class Trainer:
         state_dict = model.state_dict()
 
         checkpoint_files = [
-            os.path.join(self.log_dir, f)
-            for f in os.listdir(self.log_dir)
+            os.path.join(self.checkpoint_dir, f)
+            for f in os.listdir(self.checkpoint_dir)
             if f.startswith("checkpoint_")
         ]
         history_files = [
-            os.path.join(self.log_dir, f)
-            for f in os.listdir(self.log_dir)
+            os.path.join(self.checkpoint_dir, f)
+            for f in os.listdir(self.checkpoint_dir)
             if f.startswith("history_")
         ]
+
+        checkpoint_files.sort()
+        history_files.sort()
 
         for checkpoint_filename, history_filename in zip(
             checkpoint_files, history_files
@@ -915,8 +920,8 @@ class Trainer:
             history = {"history": self.history, "history_indices": self.history_indices}
 
             checkpoint_file = os.path.join(
-                self.log_dir,
-                "checkpoint_{:09d}_{:09d}.pt".format(
+                self.checkpoint_dir,
+                "checkpoint_minibatch={:09d}_epoch={:09d}.pt".format(
                     self.cur_minibatch, self.epoch_idx
                 ),
             )
@@ -926,8 +931,10 @@ class Trainer:
             # need to separate history because it contains metric objects, which may require
             # dill for serialization
             history_file = os.path.join(
-                self.log_dir,
-                "history_{:09d}_{:09d}.dill".format(self.cur_minibatch, self.epoch_idx),
+                self.checkpoint_dir,
+                "history_minibatch={:09d}_epoch={:09d}.dill".format(
+                    self.cur_minibatch, self.epoch_idx
+                ),
             )
             with open(history_file, "wb") as fid:
                 dill.dump(history, fid, recurse=True)
@@ -935,9 +942,9 @@ class Trainer:
             self.logger.info(f"save checkpoint to {checkpoint_file}")
             self.logger.info(f"save history to {history_file}")
 
-            checkpoint_files = glob(self.log_dir + "/checkpoint_*.pt")
+            checkpoint_files = glob(self.checkpoint_dir + "/checkpoint_*.pt")
             checkpoint_files.sort()
-            history_files = glob(self.log_dir + "/history_*.dill")
+            history_files = glob(self.checkpoint_dir + "/history_*.dill")
             history_files.sort()
 
             no_checkpoint_files = len(checkpoint_files)
@@ -949,11 +956,13 @@ class Trainer:
 
             # ----- handle onnx checkpoints --------------------------
             onnx_file = os.path.join(
-                self.log_dir,
-                "model_{:09d}_{:09d}.onnx".format(self.cur_minibatch, self.epoch_idx),
+                self.checkpoint_dir,
+                "model_minibatch={:09d}_epoch={:09d}.onnx".format(
+                    self.cur_minibatch, self.epoch_idx
+                ),
             )
             self.export_to_onnx(model, self.sample_input, onnx_file)
-            onnx_files = glob(self.log_dir + "/model_*.onnx")
+            onnx_files = glob(self.checkpoint_dir + "/model_*.onnx")
             onnx_files.sort()
             nb_onnx_file = len(onnx_files)
             if self.max_checkpoint > 0 and nb_onnx_file > self.max_checkpoint:
@@ -1102,14 +1111,14 @@ class Trainer:
 
     def load_from_checkpoint(self, model, optimizer):
         ckp_files = [
-            os.path.join(self.log_dir, f)
-            for f in os.listdir(self.log_dir)
+            os.path.join(self.checkpoint_dir, f)
+            for f in os.listdir(self.checkpoint_dir)
             if f.startswith("checkpoint_")
         ]
         ckp_files.sort()
         history_files = [
-            os.path.join(self.log_dir, f)
-            for f in os.listdir(self.log_dir)
+            os.path.join(self.checkpoint_dir, f)
+            for f in os.listdir(self.checkpoint_dir)
             if f.startswith("history_")
         ]
         history_files.sort()
