@@ -20,7 +20,6 @@ from __future__ import annotations
 import torch
 from torchvision.datasets import CIFAR10
 from torchvision import transforms as T
-from swift_loader import SwiftLoader
 
 
 class Dataset(CIFAR10):
@@ -87,7 +86,7 @@ def get_swift_loader(config: dict, prefix: str):
         swift_loader.SwiftDataLoader
 
     """
-    from swift_loader import SwiftDataLoader
+    from swift_loader import SwiftLoader
 
     dataset_kwargs = {
         "data_dir": config["data_dir"],
@@ -96,7 +95,7 @@ def get_swift_loader(config: dict, prefix: str):
     dataset_class = Dataset
 
     # then create the loader
-    loader = SwiftDataLoader(
+    loader = SwiftLoader(
         dataset_class=dataset_class,
         dataset_kwargs=dataset_kwargs,
         batch_size=config["batch_size"],

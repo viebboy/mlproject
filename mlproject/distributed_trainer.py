@@ -37,7 +37,7 @@ from typing import Callable
 import copy
 
 from mlproject.metric import Metric
-from swift_serve import Dataloader as SwiftDataLoader
+from swift_loader import SwiftLoader
 
 
 def get_cosine_lr_scheduler(init_lr, final_lr):
@@ -266,7 +266,7 @@ class Trainer:
             train_data["dataloader"] = self.FABRIC.setup_dataloaders(
                 train_data["dataloader"]
             )
-        elif isinstance(train_data["dataloader"], SwiftDataLoader):
+        elif isinstance(train_data["dataloader"], SwiftLoader):
             train_data["dataloader"].start(
                 consumer_index=self.FABRIC.global_rank, device=self.FABRIC.device
             )
@@ -278,7 +278,7 @@ class Trainer:
                 val_data["dataloader"] = self.FABRIC.setup_dataloaders(
                     val_data["dataloader"]
                 )
-            elif isinstance(val_data["dataloader"], SwiftDataLoader):
+            elif isinstance(val_data["dataloader"], SwiftLoader):
                 val_data["dataloader"].start(
                     consumer_index=self.FABRIC.global_rank, device=self.FABRIC.device
                 )
@@ -290,7 +290,7 @@ class Trainer:
                 test_data["dataloader"] = self.FABRIC.setup_dataloaders(
                     test_data["dataloader"]
                 )
-            elif isinstance(test_data["dataloader"], SwiftDataLoader):
+            elif isinstance(test_data["dataloader"], SwiftLoader):
                 test_data["dataloader"].start(
                     consumer_index=self.FABRIC.global_rank, device=self.FABRIC.device
                 )

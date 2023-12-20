@@ -64,7 +64,7 @@ def get_swift_loader(config: dict, prefix: str):
         swift_loader.SwiftDataLoader
 
     """
-    from swift_loader import SwiftDataLoader
+    from swift_loader import SwiftLoader
 
     # TODO: construct a dictionary of dataset parameters here
     dataset_kwargs = {}
@@ -72,7 +72,7 @@ def get_swift_loader(config: dict, prefix: str):
     dataset_class = None
 
     # then create the loader
-    loader = SwiftDataLoader(
+    loader = SwiftLoader(
         dataset_class=dataset_class,
         dataset_kwargs=dataset_kwargs,
         batch_size=config["batch_size"],

@@ -10,3 +10,5 @@ torchvision
 thop
 pandas
 GitPython
+lightning
+onnx

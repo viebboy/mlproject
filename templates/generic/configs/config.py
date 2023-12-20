@@ -131,7 +131,7 @@ ALL_CONFIGS = {
     ),  # if True, metric objects are saved in history, otherwise only values
     # --------- swift loader config if using swift loader ------------
     # ----------------------------------------------------------------
-    "use_swift_loader": ConfigValue(True),
+    "data_loader_type": ConfigValue("swift"),
     "worker_per_consumer": ConfigValue(4),
 }
 

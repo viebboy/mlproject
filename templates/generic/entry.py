@@ -141,7 +141,7 @@ def prepare_directories(config: dict):
         dill.dump(config, fid)
 
     with open(os.path.join(output_dir, "config_content.txt"), "w") as fid:
-        fid.write(get_config_string(config, config_index))
+        fid.write(get_config_string(config))
 
     # put directories into config
     config["output_dir"] = output_dir
@@ -208,7 +208,6 @@ def main(
                 {"dataloader": train_loader},
                 {"dataloader": val_loader},
                 {"dataloader": test_loader},
-                device=device,
                 tensorboard_logger=tensorboard_logger,
                 logger_prefix=logger_prefix,
                 load_best=config["load_best"],
@@ -230,6 +229,10 @@ if __name__ == "__main__":
     else:
         nb_consumer = max(1, torch.cuda.device_count())
         os.environ["MLPROJECT_DEVICE_COUNT"] = str(nb_consumer)
+        if nb_consumer == 1 and torch.cuda.is_available():
+            print("RUNNING WITH 1 GPU")
+        elif nb_consumer > 1:
+            print(f"RUNNING WITH {nb_consumer} GPUs")
 
     # load config file
     config_values = load_config(args.config_path, args.index, args.test_mode)

@@ -18,6 +18,7 @@ Apache 2.0 License
 
 import pprint
 import os
+import torch.nn as nn
 
 from mlproject.config import ConfigValue, create_all_config as _create_all_config
 
@@ -35,8 +36,46 @@ we could combine all these params into a dict and pass this dict later on to Con
 """
 
 # For example, we want to experiment with 2 types of model architecture
-MODEL1_CONFIG = {}
-MODEL2_CONFIG = {}
+# For example, we want to experiment with 2 types of model architecture
+# model1: with global averaging
+MODEL1_CONFIG = {
+    "nb_init_filters": 24,
+    "growth_rates": [(16, 16), (16, 16)],
+    "bottleneck": 0.5,
+    "bottleneck_style": "in",
+    "activation": nn.SiLU(inplace=True),
+    "groups": 1,
+    "reduce_input": False,
+    "dropout": None,
+    "pool_in_last_block": True,
+    "global_average": True,
+    "use_bias_for_embedding_layer": False,
+    "embedding_dim": 128,
+    "input_height": 32,
+    "input_width": 32,
+    "use_bias_for_output_layer": True,
+    "nb_class": 10,
+}
+
+# model2 without global averaging
+MODEL2_CONFIG = {
+    "nb_init_filters": 24,
+    "growth_rates": [(16, 16), (16, 16)],
+    "bottleneck": 0.5,
+    "bottleneck_style": "in",
+    "activation": nn.SiLU(inplace=True),
+    "groups": 1,
+    "reduce_input": False,
+    "dropout": None,
+    "pool_in_last_block": True,
+    "global_average": False,
+    "use_bias_for_embedding_layer": False,
+    "embedding_dim": 128,
+    "input_height": 32,
+    "input_width": 32,
+    "use_bias_for_output_layer": True,
+    "nb_class": 10,
+}
 
 # related directories, these are ignored in git by default when creating with
 # mlproject new-project
@@ -118,9 +157,13 @@ ALL_CONFIGS = {
     "retain_metric_objects": ConfigValue(
         True
     ),  # if True, metric objects are saved in history, otherwise only values
+    "load_best": ConfigValue(
+        False,
+    ),  # if True, will try to load the best checkpoint based
+    # on the val (if exist) or train monitor metric
     # --------- swift loader config if using swift loader ------------
     # ----------------------------------------------------------------
-    "use_swift_loader": ConfigValue(True),
+    "data_loader_type": ConfigValue("swift"),
     "worker_per_consumer": ConfigValue(2),
 }
 
