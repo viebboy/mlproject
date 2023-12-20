@@ -2,7 +2,7 @@
 
 ## Installation 
 
-(1) Install custom dependencies: [dataset_server](https://github.com/viebboy/dataset_server) and [cvinfer](https://github.com/viebboy/cvinfer)
+(1) Install custom dependencies: [swift-loader](https://github.com/viebboy/swift-loader) and [cvinfer](https://github.com/viebboy/cvinfer)
 
 (2) Install dependencies in `requirements.txt`
 
