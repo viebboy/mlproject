@@ -181,6 +181,10 @@ def main(
     nb_consumer: int,
     cli_kwargs: dict,
 ) -> None:
+    # we need to overwrite config value from cli based on cli_kwargs
+    for key in cli_kwargs:
+        exp_config[key] = cli_kwargs[key]
+
     # print config
     if "MLPROJECT_MAIN_PROCESS" not in os.environ:
         # only print on main process
@@ -198,10 +202,6 @@ def main(
     for trial_index in range(exp_config["nb_trial"]):
         # create a copy of the original config for each trial
         config = copy.deepcopy(exp_config)
-
-        # we need to overwrite config value from cli based on cli_kwargs
-        for key in cli_kwargs:
-            config[key] = cli_kwargs[key]
 
         # assign trial index
         config["trial_index"] = trial_index

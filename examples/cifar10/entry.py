@@ -89,12 +89,22 @@ def parse_args() -> argparse.Namespace:
     else:
         args.test_mode = False
 
+    cli_kwargs = {}
     for kwarg in args.kwargs:
         key, value = kwarg.split("=")
         if key not in SUPPORTED_KWARGS:
             raise ValueError(f"Unsupported kwarg {key}")
 
-    args.kwargs = {key: SUPPORTED_KWARGS[key](value) for key, value in args.kwargs}
+        try:
+            value = SUPPORTED_KWARGS[key](value)
+        except BaseException:
+            traceback.print_exc()
+            raise ValueError(
+                f"Failed to convert value {value} using type formatter: {SUPPORTED_KWARGS[key]}"
+            )
+        cli_kwargs[key] = value
+
+    args.kwargs = cli_kwargs
     return args
 
 
@@ -181,6 +191,10 @@ def main(
     nb_consumer: int,
     cli_kwargs: dict,
 ) -> None:
+    # overwrite options from cli
+    for key, value in cli_kwargs.items():
+        exp_config[key] = value
+
     # print config
     if "MLPROJECT_MAIN_PROCESS" not in os.environ:
         # only print on main process
@@ -198,10 +212,6 @@ def main(
     for trial_index in range(exp_config["nb_trial"]):
         # create a copy of the original config for each trial
         config = copy.deepcopy(exp_config)
-
-        # overwrite options from cli
-        for key, value in cli_kwargs.items():
-            config[key] = value
 
         # assign trial index
         config["trial_index"] = trial_index
