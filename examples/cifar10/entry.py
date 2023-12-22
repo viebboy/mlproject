@@ -33,6 +33,16 @@ from models import DenseNet
 
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# this should list the supported keyword arguments on cli to overwrite the config
+# key of the dictionary should be one of the key in the config dictionary passed to main()
+# value should be the function that maps from string to the target type of key
+# for example, if we want to overwrite nb_epoch during runtime via cli, then we can add
+# SUPPORTED_KWARGS = {"nb_epoch": int}
+# when calling entry.py, we can pass number of epoch on-the-fly like this:
+# python3 entry.py --index some_number ... nb_epoch=some_number
+# parse_args() will parse the arguments and convert the string to the target type, which is int
+SUPPORTED_KWARGS = {"n_epoch": int}
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser("Entry script to launch experiment")
@@ -63,12 +73,28 @@ def parse_args() -> argparse.Namespace:
         help="Whether to run in test mode with a small fraction of data",
     )
 
+    parser.add_argument(
+        "kwargs",
+        nargs="*",
+        help=(
+            "Additional keyword arguments in the form key=value. "
+            f"Supported kwargs include: {SUPPORTED_KWARGS}"
+        ),
+    )
+
     # process args
     args = parser.parse_args()
     if args.test_mode in ["True", "true"]:
         args.test_mode = True
     else:
         args.test_mode = False
+
+    for kwarg in args.kwargs:
+        key, value = kwarg.split("=")
+        if key not in SUPPORTED_KWARGS:
+            raise ValueError(f"Unsupported kwarg {key}")
+
+    args.kwargs = {key: SUPPORTED_KWARGS[key](value) for key, value in args.kwargs}
     return args
 
 
@@ -153,9 +179,13 @@ def main(
     exp_config: dict,
     device: str,
     nb_consumer: int,
+    cli_kwargs: dict,
 ) -> None:
     # print config
-    print_config(exp_config)
+    if "MLPROJECT_MAIN_PROCESS" not in os.environ:
+        # only print on main process
+        print_config(exp_config)
+        os.environ["MLPROJECT_MAIN_PROCESS"] = "1"
 
     # check the number of trials to repeat the experiment of a config
     if "nb_trial" not in exp_config:
@@ -168,6 +198,10 @@ def main(
     for trial_index in range(exp_config["nb_trial"]):
         # create a copy of the original config for each trial
         config = copy.deepcopy(exp_config)
+
+        # overwrite options from cli
+        for key, value in cli_kwargs.items():
+            config[key] = value
 
         # assign trial index
         config["trial_index"] = trial_index
@@ -242,4 +276,5 @@ if __name__ == "__main__":
         config_values,
         device=args.device,
         nb_consumer=nb_consumer,
+        cli_kwargs=args.kwargs,
     )

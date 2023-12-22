@@ -182,7 +182,10 @@ def main(
     cli_kwargs: dict,
 ) -> None:
     # print config
-    print_config(exp_config)
+    if "MLPROJECT_MAIN_PROCESS" not in os.environ:
+        # only print on main process
+        print_config(exp_config)
+        os.environ["MLPROJECT_MAIN_PROCESS"] = "1"
 
     # check the number of trials to repeat the experiment of a config
     if "nb_trial" not in exp_config:
