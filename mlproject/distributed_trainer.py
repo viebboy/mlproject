@@ -34,6 +34,7 @@ import numpy as np
 import tempfile
 import dill
 from typing import Callable
+import shutil
 import copy
 
 from mlproject.metric import Metric
@@ -951,8 +952,15 @@ class Trainer:
 
             if self.max_checkpoint > 0 and no_checkpoint_files > self.max_checkpoint:
                 for idx in range(0, no_checkpoint_files - self.max_checkpoint):
-                    os.remove(checkpoint_files[idx])
-                    os.remove(history_files[idx])
+                    if os.path.isfile(checkpoint_files[idx]):
+                        os.remove(checkpoint_files[idx])
+                    elif os.path.isdir(checkpoint_files[idx]):
+                        shutil.rmtree(checkpoint_files[idx])
+
+                    if os.path.isfile(history_files[idx]):
+                        os.remove(history_files[idx])
+                    elif os.path.isdir(history_files[idx]):
+                        shutil.rmtree(history_files[idx])
 
             # ----- handle onnx checkpoints --------------------------
             onnx_file = os.path.join(
@@ -967,7 +975,10 @@ class Trainer:
             nb_onnx_file = len(onnx_files)
             if self.max_checkpoint > 0 and nb_onnx_file > self.max_checkpoint:
                 for idx in range(0, nb_onnx_file - self.max_checkpoint):
-                    os.remove(onnx_files[idx])
+                    if os.path.isfile(onnx_files[idx]):
+                        os.remove(onnx_files[idx])
+                    elif os.path.isdir(onnx_files[idx]):
+                        shutil.rmtree(onnx_files[idx])
 
         # barrier is called for every process
         self.FABRIC.barrier()
