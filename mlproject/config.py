@@ -17,9 +17,12 @@ Apache 2.0 License
 
 """
 
+from __future__ import annotations
+import os
 import itertools
 import pprint
 from tabulate import tabulate
+from git import Repo, InvalidGitRepositoryError
 
 
 class ConfigValue(object):
@@ -108,3 +111,32 @@ def get_config_string(config: dict):
     table = tabulate(table, headers=["Config Name", "Config Value"])
     config_string += table
     return config_string
+
+
+def get_repo_info(file_path: str):
+    # Verify if the file path is valid
+    if not os.path.isfile(file_path):
+        return "The given path is not a valid file."
+
+    try:
+        # Initialize a repo object from the file path
+        # This will find the root of the Git repository
+        repo = Repo(file_path, search_parent_directories=True)
+    except InvalidGitRepositoryError:
+        return "Not a Git repository or the file is not in a Git repository."
+
+    # Get the Git root directory
+    repo_root = repo.git.rev_parse("--show-toplevel")
+
+    # Get the current branch name
+    branch = repo.active_branch.name
+
+    # Get the remote URL (assuming 'origin' remote)
+    remote_url = repo.remotes.origin.url
+
+    # Get the latest commit hash for the specified file
+    # Using a relative path from the repo root
+    relative_file_path = os.path.relpath(file_path, repo_root)
+    latest_commit = repo.git.log("-1", "--format=%H", relative_file_path)
+
+    return {"git_url": remote_url, "git_branch": branch, "git_commit": latest_commit}

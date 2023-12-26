@@ -26,7 +26,7 @@ import dill
 import copy
 import torch
 import traceback
-from mlproject.config import get_config_string
+from mlproject.config import get_config_string, get_repo_info
 
 from data import get_torch_loader, get_swift_loader, dispose_data_loader
 from trainer import get_trainer
@@ -116,6 +116,12 @@ def load_config(file: str, index: str, test_mode: bool) -> tuple[dict, str, str]
     config["config_description"] = config_description
     config["config_file"] = file
     config["config_index"] = index
+
+    repo_info = get_repo_info(os.path.abspath(__file__))
+    config["git_url"] = repo_info["git_url"]
+    config["git_branch"] = repo_info["git_branch"]
+    config["git_commit"] = repo_info["git_commit"]
+
     return config
 
 
