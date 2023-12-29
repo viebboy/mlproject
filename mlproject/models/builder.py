@@ -21,7 +21,7 @@ from __future__ import annotations
 import torch.nn as nn
 from collections import OrderedDict
 import plotly.graph_objects as go
-import plotly.express as px
+import colorsys
 import networkx as nx
 from collections import deque
 from loguru import logger
@@ -132,7 +132,7 @@ def visualize_topology(nodes: list[dict], path: str):
             )
         )
 
-    # Create edge trace
+    # Create edge trace with showlegend set to False
     edge_trace = go.Scatter(
         x=edge_x,
         y=edge_y,
@@ -142,12 +142,18 @@ def visualize_topology(nodes: list[dict], path: str):
         showlegend=False,
     )
 
-    # Define color scheme for node types
+    # Determine unique node types and assign a color to each
     node_types = set(node.get("type", "default") for node in nodes)
-    colors = px.colors.qualitative.Plotly
-    type_colors = {
-        node_type: colors[i % len(colors)] for i, node_type in enumerate(node_types)
-    }
+    type_colors = {"input": "red", "output": "green"}
+    hues = [i / len(node_types) for i in range(len(node_types))]
+    for i, node_type in enumerate(node_types):
+        if node_type not in type_colors:
+            # Avoiding hues close to red (0) and green (1/3)
+            hue = (hues[i] + 0.1) % 1.0
+            if 0.28 < hue < 0.38:
+                hue += 0.1
+            r, g, b = colorsys.hsv_to_rgb(hue, 0.7, 0.7)
+            type_colors[node_type] = f"rgb({int(r*255)}, {int(g*255)}, {int(b*255)})"
 
     # Create node traces based on types
     node_traces = {}
@@ -171,8 +177,19 @@ def visualize_topology(nodes: list[dict], path: str):
                 [f"{key}: {value}" for key, value in attr.items() if key != "layer"]
             )
         )
-        node_traces[node_type]["text"].append(node)
-        node_traces[node_type]["textcolor"].append("#000")
+
+        # Custom text and color for input and output nodes
+        node_label = node
+        text_color = color
+        if attr.get("input") == "input":
+            node_label += " (IN)"
+            text_color = "red"
+        elif attr.get("is_output"):
+            node_label += " (OUT)"
+            text_color = "green"
+
+        node_traces[node_type]["text"].append(node_label)
+        node_traces[node_type]["textcolor"].append(text_color)
 
     # Create figure and add node traces
     fig = go.Figure(data=[edge_trace])
