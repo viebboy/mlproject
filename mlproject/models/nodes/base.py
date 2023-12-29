@@ -18,6 +18,7 @@ Apache 2.0 License
 """
 
 from __future__ import annotations
+import torch
 import torch.nn as nn
 from loguru import logger
 
@@ -68,3 +69,48 @@ class BaseNode(nn.Module):
             elif isinstance(layer, (nn.BatchNorm1d, nn.BatchNorm2d)):
                 nn.init.constant_(layer.weight, 1)
                 nn.init.constant_(layer.bias, 0.0)
+
+    def infer_shape(self, *args, batch_axis: int = None):
+        try:
+            shape = {}
+            with torch.no_grad():
+                if len(args) == 1:
+                    shape["in"] = list(args[0].shape)
+                    if batch_axis is not None:
+                        shape["in"][batch_axis] = None
+                else:
+                    shape["in"] = [list(arg.shape) for arg in args]
+                    if batch_axis is not None:
+                        for i in range(len(shape["in"])):
+                            shape["in"][i][batch_axis] = None
+
+                outputs = self.forward(*args)
+                if isinstance(outputs, (tuple, list)):
+                    shape["out"] = [list(output.shape) for output in outputs]
+                    if batch_axis is not None:
+                        for i in range(len(shape["out"])):
+                            shape["out"][i][batch_axis] = None
+                elif isinstance(outputs, torch.Tensor):
+                    shape["out"] = list(outputs.shape)
+                    if batch_axis is not None:
+                        shape["out"][batch_axis] = None
+                elif isinstance(outputs, dict):
+                    shape["out"] = {}
+                    for key, value in outputs.items():
+                        if isinstance(value, torch.Tensor):
+                            shape["out"][key] = list(value.shape)
+                            if batch_axis is not None:
+                                shape["out"][key][batch_axis] = None
+                        else:
+                            shape["out"][key] = None
+                else:
+                    shape["out"] = None
+        except BaseException:
+            logger.warning(
+                "Failed to use default implementation of infer_shape() "
+                f"for node type: {self.node_type()}. "
+                "You need to overwrite infer_shape() in order to support this functionality"
+            )
+            shape = {"in": None, "out": None}
+
+        return shape

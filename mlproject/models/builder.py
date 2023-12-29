@@ -18,6 +18,7 @@ Apache 2.0 License
 """
 
 from __future__ import annotations
+import torch
 import torch.nn as nn
 from collections import OrderedDict
 import plotly.graph_objects as go
@@ -88,7 +89,9 @@ def _create_adjacency_matrix(nodes):
     return adjacency_matrix
 
 
-def visualize_topology(nodes: list[dict], path: str):
+def visualize_topology(
+    nodes: list[dict], path: str, node_shapes: list[dict], name: str
+):
     y_scale = 3.5
     adj_matrix = _create_adjacency_matrix(nodes)
     G = nx.DiGraph()
@@ -178,11 +181,14 @@ def visualize_topology(nodes: list[dict], path: str):
             }
         node_traces[node_type]["x"].append(pos[node][0])
         node_traces[node_type]["y"].append(pos[node][1] * y_scale)
-        node_traces[node_type]["hovertext"].append(
-            "<br>".join(
-                [f"{key}: {value}" for key, value in attr.items() if key != "layer"]
-            )
-        )
+        _hover_text = [
+            f"{key}: {value}" for key, value in attr.items() if key != "layer"
+        ]
+        if node_shapes is not None:
+            _hover_text.append(f"input shape: {node_shapes[node]['in']}")
+            _hover_text.append(f"output shape: {node_shapes[node]['out']}")
+
+        node_traces[node_type]["hovertext"].append("<br>".join(_hover_text))
 
         # Custom text and color for input and output nodes
         node_label = node
@@ -225,8 +231,13 @@ def visualize_topology(nodes: list[dict], path: str):
         fig.add_trace(node_trace)
 
     # Layout settings
+    if name is not None:
+        title = name
+    else:
+        title = "Network Topology"
+
     fig.update_layout(
-        title="<br>Network Topology",
+        title=f"<br>{title}",
         titlefont_size=16,
         showlegend=True,
         hovermode="closest",
@@ -418,5 +429,54 @@ class Builder(nn.Module):
     def topology(self):
         return self._topology
 
-    def visualize(self, path: str = None):
-        visualize_topology(self._topology, path)
+    def _infer_node_shapes(self, inputs, batch_axis):
+        if inputs is None:
+            return
+
+        data = {"input": inputs}
+        prev_node = "input"
+        prev_output = inputs
+        shapes = {}
+
+        with torch.no_grad():
+            for node, metadata in zip(self.nodes.values(), self._node_metadata):
+                if metadata["input"] == prev_node:
+                    # if the previous node is the input of the current node
+                    current_output = node(prev_output)
+                    shapes[metadata["name"]] = node.infer_shape(
+                        prev_output, batch_axis=batch_axis
+                    )
+                else:
+                    # multiple inputs or the previous node is not the input of the current node
+                    if isinstance(metadata["input"], str):
+                        current_output = node(data[metadata["input"]])
+                        shapes[metadata["name"]] = node.infer_shape(
+                            data[metadata["input"]], batch_axis=batch_axis
+                        )
+                    elif isinstance(metadata["input"], (tuple, list)):
+                        inputs = [data[name] for name in metadata["input"]]
+                        current_output = node(*inputs)
+                        shapes[metadata["name"]] = node.infer_shape(
+                            *inputs, batch_axis=batch_axis
+                        )
+                    else:
+                        raise ValueError(
+                            '"input" field of a node must be a string or a tuple/list of strings'
+                        )
+
+                prev_output = current_output
+                prev_node = metadata["name"]
+                if metadata["retain"]:
+                    data[metadata["name"]] = current_output
+
+        return shapes
+
+    def visualize(
+        self,
+        path: str = None,
+        inputs: torch.Tensor = None,
+        batch_axis: int = None,
+        name: str = None,
+    ):
+        node_shapes = self._infer_node_shapes(inputs, batch_axis)
+        visualize_topology(self._topology, path, node_shapes, name)
