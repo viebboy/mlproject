@@ -4,6 +4,8 @@
 
 (optional) Install custom dependencies: [swift-loader](https://github.com/viebboy/swift-loader)
 
+(0) Install `pygraphviz` based on your system. See [installation guide](https://pygraphviz.github.io/documentation/stable/install.html)
+
 (1) Install dependencies in `requirements.txt`
 
 (2) Install this package in development mode: `pip3 install -e .` from the root of this package
