@@ -129,10 +129,16 @@ ALL_CONFIGS = {
     "retain_metric_objects": ConfigValue(
         True
     ),  # if True, metric objects are saved in history, otherwise only values
+    # ----------------- final weights -------------------------
+    "load_best": ConfigValue(True),  # if true, use the one
+    # that gives the best monitor_metric value on validation set (if exists)
+    # otherwise, on the train set
+    # if false, then use the weight values after the last update step
+    # ----------------------------------------------------------
     # --------- swift loader config if using swift loader ------------
-    # ----------------------------------------------------------------
     "data_loader_type": ConfigValue("swift"),
     "worker_per_consumer": ConfigValue(4),
+    # ----------------------------------------------------------------
 }
 
 
