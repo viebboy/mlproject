@@ -21,6 +21,7 @@ from __future__ import annotations
 import torch.nn as nn
 from collections import OrderedDict
 import plotly.graph_objects as go
+import plotly.express as px
 import networkx as nx
 from collections import deque
 from loguru import logger
@@ -102,7 +103,7 @@ def visualize_topology(nodes: list[dict], path: str):
     # Use Graphviz for layout
     pos = nx.nx_agraph.graphviz_layout(G, prog="dot", args="-Grankdir=TB")
 
-    # Create traces for Plotly
+    # Edge traces
     edge_x = []
     edge_y = []
     arrows = []
@@ -138,60 +139,70 @@ def visualize_topology(nodes: list[dict], path: str):
         line=dict(width=2, color="#888"),
         hoverinfo="none",
         mode="lines",
+        showlegend=False,
     )
 
-    node_x = [pos[node][0] for node in G.nodes()]
-    node_y = [pos[node][1] for node in G.nodes()]
+    # Define color scheme for node types
+    node_types = set(node.get("type", "default") for node in nodes)
+    colors = px.colors.qualitative.Plotly
+    type_colors = {
+        node_type: colors[i % len(colors)] for i, node_type in enumerate(node_types)
+    }
 
-    node_colors = []
-    text_colors = []
-    for node in G.nodes.values():
-        if node.get("input") == "input":
-            node_colors.append("red")
-            text_colors.append("red")
-        elif node.get("is_output"):
-            node_colors.append("green")
-            text_colors.append("green")
-        else:
-            node_colors.append("#888")
-            text_colors.append("#000")
+    # Create node traces based on types
+    node_traces = {}
+    for node, attr in G.nodes(data=True):
+        node_type = attr.get("type", "default")
+        color = type_colors[node_type]
 
-    hovertext = [
-        "<br>".join(
-            [
-                f"{key}: {value}"
-                for key, value in G.nodes[node].items()
-                if key != "layer"
-            ]
+        if node_type not in node_traces:
+            node_traces[node_type] = {
+                "x": [],
+                "y": [],
+                "hovertext": [],
+                "name": node_type,
+                "text": [],
+                "textcolor": [],
+            }
+        node_traces[node_type]["x"].append(pos[node][0])
+        node_traces[node_type]["y"].append(pos[node][1])
+        node_traces[node_type]["hovertext"].append(
+            "<br>".join(
+                [f"{key}: {value}" for key, value in attr.items() if key != "layer"]
+            )
         )
-        for node in G.nodes()
-    ]
+        node_traces[node_type]["text"].append(node)
+        node_traces[node_type]["textcolor"].append("#000")
 
-    node_trace = go.Scatter(
-        x=node_x,
-        y=node_y,
-        mode="markers+text",
-        text=[node for node in G.nodes()],
-        textposition="bottom center",
-        hoverinfo="text",
-        marker=dict(showscale=False, color=node_colors, size=10, line_width=2),
-        hovertext=hovertext,
-        textfont=dict(color=text_colors),
-    )
+    # Create figure and add node traces
+    fig = go.Figure(data=[edge_trace])
+    for node_type, trace_data in node_traces.items():
+        node_trace = go.Scatter(
+            x=trace_data["x"],
+            y=trace_data["y"],
+            mode="markers+text",
+            text=trace_data["text"],
+            textposition="bottom center",
+            hoverinfo="text",
+            marker=dict(
+                showscale=False, color=type_colors[node_type], size=10, line_width=2
+            ),
+            hovertext=trace_data["hovertext"],
+            textfont=dict(color=trace_data["textcolor"]),
+            name=node_type,  # This is used for the legend entry
+        )
+        fig.add_trace(node_trace)
 
-    # Create figure
-    fig = go.Figure(
-        data=[edge_trace, node_trace],
-        layout=go.Layout(
-            title="<br>Network Topology",
-            titlefont_size=16,
-            showlegend=False,
-            hovermode="closest",
-            margin=dict(b=20, l=5, r=5, t=40),
-            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-            annotations=arrows,
-        ),
+    # Layout settings
+    fig.update_layout(
+        title="<br>Network Topology",
+        titlefont_size=16,
+        showlegend=True,
+        hovermode="closest",
+        margin=dict(b=20, l=5, r=5, t=40),
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        annotations=arrows,
     )
 
     if path is not None:
