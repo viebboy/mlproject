@@ -252,7 +252,7 @@ def main(
                 logger_prefix=logger_prefix,
                 load_best=config["load_best"],
             )
-        except Exception as error:
+        except BaseException as error:
             dispose_data_loader(train_loader, val_loader, test_loader)
             traceback.print_exc()
             raise error

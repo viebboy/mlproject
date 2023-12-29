@@ -263,7 +263,7 @@ def main(
                     "load_best"
                 ],  # if True, will attempt to load the best checkpoint based on train/val perf
             )
-        except Exception as error:
+        except BaseException as error:
             dispose_data_loader(train_loader, val_loader, test_loader)
             traceback.print_exc()
             raise error
