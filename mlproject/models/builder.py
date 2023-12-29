@@ -89,6 +89,7 @@ def _create_adjacency_matrix(nodes):
 
 
 def visualize_topology(nodes: list[dict], path: str):
+    y_scale = 3.5
     adj_matrix = _create_adjacency_matrix(nodes)
     G = nx.DiGraph()
 
@@ -101,7 +102,9 @@ def visualize_topology(nodes: list[dict], path: str):
                 G.add_edge(source_node["name"], target_node["name"])
 
     # Use Graphviz for layout
-    pos = nx.nx_agraph.graphviz_layout(G, prog="dot", args="-Grankdir=TB")
+    pos = nx.nx_agraph.graphviz_layout(
+        G, prog="dot", args="-Grankdir=TB -Gnodesep=2 -Granksep=8"
+    )
 
     # Edge traces
     edge_x = []
@@ -110,6 +113,8 @@ def visualize_topology(nodes: list[dict], path: str):
     for edge in G.edges():
         x0, y0 = pos[edge[0]]
         x1, y1 = pos[edge[1]]
+        y0 *= y_scale
+        y1 *= y_scale
         edge_x.extend([x0, x1, None])
         edge_y.extend([y0, y1, None])
 
@@ -169,9 +174,10 @@ def visualize_topology(nodes: list[dict], path: str):
                 "name": node_type,
                 "text": [],
                 "textcolor": [],
+                "marker": [],
             }
         node_traces[node_type]["x"].append(pos[node][0])
-        node_traces[node_type]["y"].append(pos[node][1])
+        node_traces[node_type]["y"].append(pos[node][1] * y_scale)
         node_traces[node_type]["hovertext"].append(
             "<br>".join(
                 [f"{key}: {value}" for key, value in attr.items() if key != "layer"]
@@ -181,15 +187,19 @@ def visualize_topology(nodes: list[dict], path: str):
         # Custom text and color for input and output nodes
         node_label = node
         text_color = color
+        marker_symbol = "circle"  # Default shape
         if attr.get("input") == "input":
             node_label += " (IN)"
             text_color = "red"
+            # marker_symbol = "star"  # Star shape for input nodes
         elif attr.get("is_output"):
             node_label += " (OUT)"
             text_color = "green"
+            # marker_symbol = "star"  # Star shape for output nodes
 
         node_traces[node_type]["text"].append(node_label)
         node_traces[node_type]["textcolor"].append(text_color)
+        node_traces[node_type]["marker"].append(marker_symbol)
 
     # Create figure and add node traces
     fig = go.Figure(data=[edge_trace])
@@ -202,7 +212,11 @@ def visualize_topology(nodes: list[dict], path: str):
             textposition="bottom center",
             hoverinfo="text",
             marker=dict(
-                showscale=False, color=type_colors[node_type], size=10, line_width=2
+                showscale=False,
+                color=type_colors[node_type],
+                size=15,
+                line_width=2,
+                symbol=trace_data["marker"],  # Apply custom marker symbol
             ),
             hovertext=trace_data["hovertext"],
             textfont=dict(color=trace_data["textcolor"]),
