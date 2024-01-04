@@ -418,7 +418,10 @@ class Builder(nn.Module):
             if metadata["retain"]:
                 data[metadata["name"]] = current_output
 
-        return [data[name] for name in self._output_names]
+        outputs = [data[name] for name in self._output_names]
+        if len(outputs) == 1:
+            return outputs[0]
+        return outputs
 
     def _get_node(self, name: str):
         "return node by name"
