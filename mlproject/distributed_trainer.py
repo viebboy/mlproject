@@ -160,6 +160,7 @@ class Trainer:
         test_mode: bool = False,
         retain_metric_objects: bool = True,
         sample_input=None,
+        onnx_config=None,
     ):
         if not (isinstance(eval_freq, int) and eval_freq >= 1):
             msg = (
@@ -194,6 +195,26 @@ class Trainer:
         self.test_mode = test_mode
         self.retain_metric_objects = retain_metric_objects
         self.sample_input = sample_input
+        if onnx_config is None:
+            self.onnx_config = {
+                "dynamic_batch": False,
+                "do_constant_folding": True,
+                "opset_version": 11,
+            }
+        elif isinstance(onnx_config, dict):
+            self.onnx_config = onnx_config
+            if "dynamic_batch" not in self.onnx_config:
+                self.onnx_config["dynamic_batch"] = False
+
+            if "do_constant_folding" not in self.onnx_config:
+                self.onnx_config["do_constant_folding"] = True
+
+            if "opset_version" not in self.onnx_config:
+                self.onnx_config["opset_version"] = 11
+        else:
+            raise RuntimeError(
+                "onnx_config must be a dictionary; received {}".format(onnx_config)
+            )
 
         valid = False
         for metric in metrics:
@@ -890,6 +911,38 @@ class Trainer:
         os.remove(onnx_path)
 
         # now both sample input and cpu model are on cpu, simply export
+        if isinstance(sample_input, (list, tuple)):
+            # input is a list of tensors
+            input_names = ["input_{}".format(idx) for idx in range(len(sample_input))]
+        elif isinstance(sample_input, torch.Tensor):
+            input_names = ["input"]
+        else:
+            raise RuntimeError(
+                "Invalid model for export. A valid model must accept "
+                "a tensor or a list of tensor as inputs"
+            )
+
+        with torch.no_grad():
+            outputs = cpu_model(sample_input)
+            if isinstance(outputs, (list, tuple)):
+                for item in outputs:
+                    if not isinstance(item, torch.Tensor):
+                        raise RuntimeError(
+                            "Cannot export model that returns a list of non-tensor"
+                        )
+                output_names = ["output_{}".format(idx) for idx in range(len(outputs))]
+            elif isinstance(outputs, torch.Tensor):
+                output_names = ["output"]
+            elif isinstance(outputs, dict):
+                raise RuntimeError(
+                    "Cannot export model that returns a dictionary as outputs"
+                )
+
+        dynamic_axes = {}
+        if self.onnx_config["dynamic_batch"]:
+            for name in input_names + output_names:
+                dynamic_axes[name] = {0: "batch_size"}
+
         torch.onnx.export(
             cpu_model,
             sample_input,
@@ -897,9 +950,9 @@ class Trainer:
             opset_version=11,
             export_params=True,
             do_constant_folding=True,
-            input_names=["input"],
-            output_names=["output"],
-            dynamic_axes={"input": {0: "batch_size"}, "output": {0: "batch_size"}},
+            input_names=input_names,
+            output_names=output_names,
+            dynamic_axes=dynamic_axes,
         )
         self.logger.info(f"save model in ONNX format in {onnx_path}")
 

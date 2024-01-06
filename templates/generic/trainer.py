@@ -240,6 +240,38 @@ class Trainer(BaseTrainer):
         os.remove(onnx_path)
 
         # now both sample input and cpu model are on cpu, simply export
+        if isinstance(sample_input, (list, tuple)):
+            # input is a list of tensors
+            input_names = ["input_{}".format(idx) for idx in range(len(sample_input))]
+        elif isinstance(sample_input, torch.Tensor):
+            input_names = ["input"]
+        else:
+            raise RuntimeError(
+                "Invalid model for export. A valid model must accept "
+                "a tensor or a list of tensor as inputs"
+            )
+
+        with torch.no_grad():
+            outputs = cpu_model(sample_input)
+            if isinstance(outputs, (list, tuple)):
+                for item in outputs:
+                    if not isinstance(item, torch.Tensor):
+                        raise RuntimeError(
+                            "Cannot export model that returns a list of non-tensor"
+                        )
+                output_names = ["output_{}".format(idx) for idx in range(len(outputs))]
+            elif isinstance(outputs, torch.Tensor):
+                output_names = ["output"]
+            elif isinstance(outputs, dict):
+                raise RuntimeError(
+                    "Cannot export model that returns a dictionary as outputs"
+                )
+
+        dynamic_axes = {}
+        if self.onnx_config["dynamic_batch"]:
+            for name in input_names + output_names:
+                dynamic_axes[name] = {0: "batch_size"}
+
         torch.onnx.export(
             cpu_model,
             sample_input,
@@ -247,9 +279,9 @@ class Trainer(BaseTrainer):
             opset_version=11,
             export_params=True,
             do_constant_folding=True,
-            input_names=["input"],
-            output_names=["output"],
-            dynamic_axes={"input": {0: "batch_size"}, "output": {0: "batch_size"}},
+            input_names=input_names,
+            output_names=output_names,
+            dynamic_axes=dynamic_axes,
         )
         self.logger.info(f"save model in ONNX format in {onnx_path}")
 
