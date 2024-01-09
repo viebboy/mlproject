@@ -21,6 +21,7 @@ from __future__ import annotations
 import torch.nn as nn
 import numpy as np
 from mlproject.models.nodes.base import BaseNode
+from mlproject.models.nodes.activations import build_activation_node
 
 
 class Conv2D(BaseNode):
@@ -87,10 +88,12 @@ class Conv2D(BaseNode):
                 groups=final_grp_value,
             )
 
+        self.act = build_activation_node(kwargs["activation"])
+
         self.initialize()
 
     def forward(self, inputs):
-        outputs = self.conv(inputs)
+        outputs = self.act(self.conv(inputs))
         if self.perm_indices is not None:
             return outputs[:, self.perm_indices, :, :]
         else:
@@ -109,6 +112,6 @@ class Conv2D(BaseNode):
         return {
             "groups": 1,
             "bias": True,
-            "activation": "silu",
+            "activation": "identity",
             "permute_output": True,
         }

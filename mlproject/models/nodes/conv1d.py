@@ -109,6 +109,6 @@ class Conv1D(BaseNode):
         return {
             "groups": 1,
             "bias": True,
-            "activation": "silu",
+            "activation": "identity",
             "permute_output": True,
         }
