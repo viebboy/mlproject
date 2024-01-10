@@ -66,6 +66,8 @@ def register_node(node_builder: callable) -> None:
 
     _NODES[node_type] = node_builder
 
+    return node_builder
+
 
 def build_node(node_config: dict) -> BaseNode:
     if node_config["type"] not in _NODES:
