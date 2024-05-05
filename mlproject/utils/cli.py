@@ -71,6 +71,11 @@ def add_create_image_blob_parser(subparsers):
         action="store_true",
         help="whether to decode images and save them in decoded form",
     )
+    parser.add_argument(
+        "--benchmark",
+        action="store_true",
+        help="whether to benchmark the blob",
+    )
 
 
 def main():

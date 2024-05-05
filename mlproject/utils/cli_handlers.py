@@ -20,6 +20,8 @@ Apache License 2.0
 from __future__ import annotations
 import argparse
 import os
+from tqdm import tqdm
+from loguru import logger
 from mlproject.data import BinaryImageBlob
 
 
@@ -38,3 +40,15 @@ def create_image_blob_handler(args: argparse.Namespace) -> None:
         nb_shard=args.nb_shard,
         save_decode=args.save_decode,
     )
+
+    if args.benchmark:
+        import time
+
+        start = time.time()
+        for idx in tqdm(range(len(blob))):
+            blob[idx]
+        stop = time.time()
+        fps = len(blob) / (stop - start)
+        logger.info(
+            f"Took {stop - start:.2f} seconds to gover {len(blob)} images (FPS={fps:.2f})"
+        )

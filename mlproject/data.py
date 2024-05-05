@@ -77,11 +77,12 @@ def write_image_cache(
     image_dir: str,
     binary_file: str,
     index_file: str,
+    map_file: str,
     nb_shard: int,
     shard_index: int,
     decode: bool = False,
 ):
-    image_files = [os.pat.join(image_dir, f) for f in os.listdir(image_dir)]
+    image_files = [os.path.join(image_dir, f) for f in os.listdir(image_dir)]
     logger.info(f"Found {len(image_files)} images")
     image_files.sort()
     file_per_shard = int(np.ceil(len(image_files) / nb_shard))
@@ -92,7 +93,9 @@ def write_image_cache(
     blob = BinaryBlob(binary_file, index_file, "w")
     related_files = image_files[start_idx:stop_idx]
     nb_broken = 0
-    for file_idx in tqdm.tqdm(range(len(related_files))):
+
+    map_file_fid = open(map_file, "w")
+    for file_idx in tqdm(range(len(related_files))):
         # check if image is not broken
         try:
             img = Image.open(related_files[file_idx])
@@ -116,7 +119,9 @@ def write_image_cache(
 
             basename = os.path.basename(path)
             blob.write_index(file_idx, (basename, byte_content))
+            map_file_fid.write(f"{basename},{shard_index},{file_idx}\n")
     blob.close()
+    map_file_fid.close()
     logger.info(
         f"Found {nb_broken}/{len(image_files)} broken images in shard index: {shard_index}"
     )
@@ -298,7 +303,11 @@ class BinaryImageBlob:
             os.path.join(binary_file_dir, "data_{:03d}.idx".format(i))
             for i in range(nb_shard)
         ]
-        self._map_file = os.path.join(binary_file_dir, "filename_to_index.txt")
+        self._map_files = [
+            os.path.join(binary_file_dir, "data_{:03d}.filemap.txt".format(i))
+            for i in range(nb_shard)
+        ]
+        self._decode_flag_file = os.path.join(binary_file_dir, "decode.flag")
         self._decode = save_decode
 
         # check if image_dir exists
@@ -306,14 +315,16 @@ class BinaryImageBlob:
             os.makedirs(binary_file_dir, exist_ok=True)
             has_cache = False
         else:
-            if len(os.listdir(image_dir)) == 0:
+            if len(os.listdir(binary_file_dir)) == 0:
                 has_cache = False
             else:
                 has_cache = True
-                if not os.path.exists(self._map_file):
-                    has_cache = False
-
-                for file in self._binary_files + self._index_files:
+                for file in (
+                    self._binary_files
+                    + self._index_files
+                    + self._map_files
+                    + [self._decode_flag_file]
+                ):
                     if not os.path.exists(file):
                         has_cache = False
                         break
@@ -336,42 +347,34 @@ class BinaryImageBlob:
             BinaryBlob(b, i, "r") for b, i in zip(self._binary_files, self._index_files)
         ]
 
+        with open(self._decode_flag_file, "r") as fid:
+            self._decode = bool(int(fid.read()))
+
         self._img_to_idx = {}
         self._indices = []
-        with open(self._map_file, "r") as fid:
-            content = fid.read().split("\n")
-            if content[-1] == "":
-                content = content[:-1]
-            self._decode = bool(int(content[0].split(":")[1]))
-            content = content[1:]
+        count = 0
+        for map_file in self._map_files:
+            with open(map_file, "r") as fid:
+                content = fid.read().split("\n")
+                if content[-1] == "":
+                    content = content[:-1]
 
-            for row in content:
-                img_name, shard_idx, img_idx, int_idx = row.split(",")
-                shard_idx = int(shard_idx)
-                img_idx = int(img_idx)
-                self._img_to_idx[img_name] = (shard_idx, img_idx, int_idx)
-                self._indices.append((shard_idx, img_idx))
+                for row in content:
+                    img_name, shard_idx, img_idx = row.split(",")
+                    shard_idx = int(shard_idx)
+                    img_idx = int(img_idx)
+                    self._img_to_idx[img_name] = (shard_idx, img_idx, count)
+                    self._indices.append((shard_idx, img_idx))
+                    count += 1
 
     def _create_cache(self, image_dir: str, nb_shard: int):
-        image_files = [os.pat.join(image_dir, f) for f in os.listdir(image_dir)]
-        logger.info(f"Found {len(image_files)} images")
-        image_files.sort()
-        file_per_shard = int(np.ceil(len(image_files) / nb_shard))
-        map_file_fid = open(self._map_file, "w")
-        map_file_fid.write("decode:{}\n".format(int(self._decode)))
+        if self._decode is None:
+            raise RuntimeError(
+                "save_decode must be set when constructing BinaryImageBlob"
+            )
 
-        logger.info("Writing map file")
-        count = 0
-        for shard_idx in range(nb_shard):
-            start_idx = shard_idx * file_per_shard
-            stop_idx = min((shard_idx + 1) * file_per_shard, len(image_files))
-            related_files = image_files[start_idx:stop_idx]
-            for file_idx in tqdm.tqdm(range(len(related_files))):
-                path = related_files[file_idx]
-                basename = os.path.basename(path)
-                map_file_fid.write(f"{basename},{shard_idx},{file_idx},{count}\n")
-                count += 1
-        map_file_fid.close()
+        with open(self._decode_flag_file, "w") as fid:
+            fid.write(str(int(self._decode)))
 
         logger.info("Writing cache files")
         joblib.Parallel(n_jobs=NB_PARALLEL_JOBS, backend="loky")(
@@ -379,12 +382,13 @@ class BinaryImageBlob:
                 image_dir,
                 binary_file,
                 index_file,
+                map_file,
                 nb_shard,
                 shard_idx,
                 self._decode,
             )
-            for shard_idx, (binary_file, index_file) in enumerate(
-                zip(self._binary_files, self._index_files)
+            for shard_idx, (binary_file, index_file, map_file) in enumerate(
+                zip(self._binary_files, self._index_files, self._map_files)
             )
         )
         logger.info("Complete writing cache files")
@@ -394,7 +398,7 @@ class BinaryImageBlob:
 
     def __getitem__(self, idx):
         shard_idx, img_idx = self._indices[idx]
-        bytes_ = self._blobs[shard_idx].read_index(img_idx)
+        _, bytes_ = self._blobs[shard_idx].read_index(img_idx)
         if self._decode:
             # if the saved bytes have been decoded into array
             # we need to use dill to load it
@@ -402,19 +406,21 @@ class BinaryImageBlob:
         else:
             # bytes were saved as is
             # so we need Pillow to read
-            return np.array(
-                Image.open(IO.BytesIO(self._blobs[shard_idx].read_index(img_idx)))
-            )
+            return np.array(Image.open(IO.BytesIO(bytes_)))
 
     def image_files(self):
         return list(self._img_to_idx.keys())
 
-    def get_image_by_name(self, name):
+    def get_image_by_name(self, name, name_check: bool = False):
         if name not in self._img_to_idx:
             raise KeyError(f"Image {name} not found in the blob")
 
-        shard_idx, img_idx, _ = self._img_to_idx[name]
-        bytes_ = self._blobs[shard_idx].read_index(img_idx)
+        shard_idx, img_idx = self._img_to_idx[name]
+        decoded_name, bytes_ = self._blobs[shard_idx].read_index(img_idx)
+
+        if name_check:
+            assert name == decoded_name
+
         if self._decode:
             # if the saved bytes have been decoded into array
             # we need to use dill to load it
@@ -422,9 +428,7 @@ class BinaryImageBlob:
         else:
             # bytes were saved as is
             # so we need Pillow to read
-            return np.array(
-                Image.open(IO.BytesIO(self._blobs[shard_idx].read_index(img_idx)))
-            )
+            return np.array(Image.open(IO.BytesIO(bytes_)))
 
     def get_index_by_name(self, name):
         if name not in self._img_to_idx:
