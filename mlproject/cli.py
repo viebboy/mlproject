@@ -35,185 +35,186 @@ def parse_args():
     #
     parser.add_argument(
         "command",
-        action='store',
+        action="store",
         type=str,
         choices=[
-            'init',
-            'new-project',
-            'new-file',
-            'modify-metadata',
-            'launch-exp',
-            'summarize-exp',
+            "init",
+            "new-project",
+            "new-file",
+            "modify-metadata",
+            "launch-exp",
+            "summarize-exp",
         ],
-        help="primary command to run mlproject"
+        help="primary command to run mlproject",
     )
 
     # options
     parser.add_argument(
         "--company",
-        action='store',
+        action="store",
         type=str,
         default=None,
-        help="company that owns this project. Option for 'mlproject init' and 'mlproject new-project'"
+        help="company that owns this project. Option for 'mlproject init' and 'mlproject new-project'",
     )
     parser.add_argument(
         "--authors",
-        action='store',
+        action="store",
         type=str,
         default=None,
-        help=''.join([
-            "name and emails of authors. Format: name1,email1;name2,email2 and so on",
-            'For example: --authors "First Name Last Name,email1@gmail.com; First Name Last Name,email2@gmail.com"'
-        ])
+        help="".join(
+            [
+                "name and emails of authors. Format: name1,email1;name2,email2 and so on",
+                'For example: --authors "First Name Last Name,email1@gmail.com; First Name Last Name,email2@gmail.com"',
+            ]
+        ),
     )
     parser.add_argument(
         "--disable-warning",
-        action='store',
+        action="store",
         type=str,
         default=None,
-        help='whether to disable warnings'
+        help="whether to disable warnings",
     )
     parser.add_argument(
         "--nb-parallel-jobs",
-        action='store',
+        action="store",
         type=int,
         default=None,
-        help='number of parallel jobs to run in joblib'
+        help="number of parallel jobs to run in joblib",
     )
     parser.add_argument(
-        "--log-level",
-        action='store',
-        type=str,
-        default=None,
-        help='logging level'
+        "--log-level", action="store", type=str, default=None, help="logging level"
     )
     parser.add_argument(
         "--license",
-        action='store',
+        action="store",
         type=str,
         default=None,
-        choices=['MIT', 'proprietary', 'apache'],
-        help='license'
+        choices=["MIT", "proprietary", "apache"],
+        help="license",
     )
     parser.add_argument(
         "--project-name",
-        action='store',
+        action="store",
         type=str,
         default=None,
-        help='name of the project'
+        help="name of the project",
     )
     parser.add_argument(
         "--path",
-        action='store',
+        action="store",
         type=str,
         default=None,
-        help='target directory to create the project or file'
+        help="target directory to create the project or file",
     )
     parser.add_argument(
         "--template",
-        action='store',
+        action="store",
         type=str,
-        default='generic',
-        choices=['generic',],
-        help='the type of template to create'
+        default="generic",
+        choices=[
+            "generic",
+        ],
+        help="the type of template to create",
     )
     parser.add_argument(
         "--filename",
-        action='store',
+        action="store",
         type=str,
         default=None,
-        help='name of the file to create'
+        help="name of the file to create",
     )
     parser.add_argument(
         "--desc",
-        action='store',
+        action="store",
         type=str,
         default=None,
-        help='description of the file to create'
+        help="description of the file to create",
     )
     # parameters for launch-exp
     parser.add_argument(
         "--config-path",
-        action='store',
+        action="store",
         type=str,
         default=None,
-        help='path to config [used in launch-exp or summarize command]'
+        help="path to config [used in launch-exp or summarize command]",
     )
     parser.add_argument(
         "--entry-script",
-        action='store',
+        action="store",
         type=str,
         default=None,
-        help='path to entry script [used in launch-exp command]'
+        help="path to entry script [used in launch-exp command]",
     )
     parser.add_argument(
         "--device",
-        action='store',
+        action="store",
         type=str,
         default=None,
-        help='the type of device to run computation. Either cuda or cpu'
+        help="the type of device to run computation. Either cuda or cpu",
     )
     parser.add_argument(
         "--gpu-indices",
-        action='store',
+        action="store",
         type=str,
         default=None,
-        help='the indices of GPUs to use if device is cuda'
+        help="the indices of GPUs to use if device is cuda",
     )
     parser.add_argument(
         "--gpu-per-exp",
-        action='store',
+        action="store",
         type=int,
         default=None,
-        help='the number of GPUs to use per experiment'
+        help="the number of GPUs to use per experiment",
     )
     parser.add_argument(
         "--nb-parallel-exp",
-        action='store',
+        action="store",
         type=int,
         default=None,
-        help='maximum number of parallel exps if running on CPU'
+        help="maximum number of parallel exps if running on CPU",
     )
     parser.add_argument(
         "--worker-log-prefix",
-        action='store',
+        action="store",
         type=str,
         default=None,
-        help='the prefix of the worker log files'
+        help="the prefix of the worker log files",
     )
     parser.add_argument(
         "--output-file",
-        action='store',
+        action="store",
         type=str,
         default=None,
-        help='output file to write the summary of experiment results [used in summarize-exp]'
+        help="output file to write the summary of experiment results [used in summarize-exp]",
     )
     parser.add_argument(
         "--delimiter",
-        action='store',
+        action="store",
         type=str,
         default=None,
-        help='delimiter to use when writing to csv file [used in summarize-exp]'
+        help="delimiter to use when writing to csv file [used in summarize-exp]",
     )
     parser.add_argument(
         "--metrics",
-        action='store',
+        action="store",
         type=str,
         default=None,
-        help='metrics to summarize the results, comma separated list [used in summarize-exp]'
+        help="metrics to summarize the results, comma separated list [used in summarize-exp]",
     )
 
     return parser.parse_known_args()
 
 
 def parse_authors_string(text):
-    authors_ = text.split(';')
+    authors_ = text.split(";")
     authors = []
     for author in authors_:
-        name = author.split(',')[0]
-        emails = author.split(',')[1:]
-        authors.append({'name': name, 'emails': emails})
+        name = author.split(",")[0]
+        emails = author.split(",")[1:]
+        authors.append({"name": name, "emails": emails})
     return authors
+
 
 def modify_metadata(**kwargs):
     from mlproject.constants import (
@@ -223,90 +224,107 @@ def modify_metadata(**kwargs):
         LICENSES,
         DEFAULT_LICENSE,
     )
-    logger.warning('Modifying project metadata involves modifying source code')
-    logger.warning('Potentiall failure could lead to loss of source code')
-    response = input('Do you still want to perform this operation? (Y/N): ')
-    if response != 'Y':
+
+    logger.warning("Modifying project metadata involves modifying source code")
+    logger.warning("Potentiall failure could lead to loss of source code")
+    response = input("Do you still want to perform this operation? (Y/N): ")
+    if response != "Y":
         return
 
-    path = os.path.abspath('.')
-    config_file = os.path.join(path, '.mlproject.json')
+    path = os.path.abspath(".")
+    config_file = os.path.join(path, ".mlproject.json")
     if not os.path.exists(config_file):
         msg = (
-            f'Cannot find the config file in: {config_file}; ',
-            '"mlproject modify" must be called at the root of a project created by mlproject init'
+            f"Cannot find the config file in: {config_file}; ",
+            '"mlproject modify" must be called at the root of a project created by mlproject init',
         )
-        raise RuntimeError(''.join(msg))
+        raise RuntimeError("".join(msg))
 
-    with open(config_file, 'r') as fid:
+    with open(config_file, "r") as fid:
         config = json.loads(fid.read())
 
-    if kwargs['authors'] is not None:
+    if kwargs["authors"] is not None:
         try:
-            kwargs['authors'] = parse_authors_string(kwargs['authors'])
+            kwargs["authors"] = parse_authors_string(kwargs["authors"])
         except Exception:
-            raise RuntimeError('Cannot parse authors with the provided value: "{}"'.format(kwargs['authors']))
+            raise RuntimeError(
+                'Cannot parse authors with the provided value: "{}"'.format(
+                    kwargs["authors"]
+                )
+            )
 
-    py_files = glob.glob(os.path.join(path, '**', '*.py'), recursive=True)
+    py_files = glob.glob(os.path.join(path, "**", "*.py"), recursive=True)
     for file in py_files:
         # backup
-        shutil.copy(file, file + '.bk')
+        shutil.copy(file, file + ".bk")
 
-        with open(file, 'r') as fid:
-            content = fid.read().split('\n')
+        with open(file, "r") as fid:
+            content = fid.read().split("\n")
 
         for i in range(len(content)):
             row = content[i]
             # modify company
-            modify_company = row.startswith('* Copyright') and kwargs['company'] is not None
+            modify_company = (
+                row.startswith("* Copyright") and kwargs["company"] is not None
+            )
             if modify_company:
-                year = config['year']
+                year = config["year"]
                 content[i] = f'* Copyright: {year} {kwargs["company"]}'
 
-            modify_authors = row.startswith('* Authors') and kwargs['authors'] is not None
+            modify_authors = (
+                row.startswith("* Authors") and kwargs["authors"] is not None
+            )
             if modify_authors:
                 authors_string = []
-                for author in kwargs['authors']:
-                    authors_string.append(author['name'] + ' (' + ', '.join(author['emails']) + ')')
-                content[i] = f'* Authors: ' + ', '.join(authors_string)
+                for author in kwargs["authors"]:
+                    authors_string.append(
+                        author["name"] + " (" + ", ".join(author["emails"]) + ")"
+                    )
+                content[i] = f"* Authors: " + ", ".join(authors_string)
 
-            modify_name = row.startswith('This is part of') and kwargs['project_name'] is not None
+            modify_name = (
+                row.startswith("This is part of") and kwargs["project_name"] is not None
+            )
             if modify_name:
-                content[i] = 'This is part of the {} project'.format(kwargs['project_name'])
+                content[i] = "This is part of the {} project".format(
+                    kwargs["project_name"]
+                )
 
-            modify_license = row.startswith('License') and kwargs['license'] is not None
+            modify_license = row.startswith("License") and kwargs["license"] is not None
             if modify_license:
-                title = LICENSES[kwargs['license']]['title']
-                content[i+2] = f'{title}'
+                title = LICENSES[kwargs["license"]]["title"]
+                content[i + 2] = f"{title}"
 
-        content = '\n'.join(content)
-        with open(file, 'w') as fid:
+        content = "\n".join(content)
+        with open(file, "w") as fid:
             fid.write(content)
-        os.remove(file + '.bk')
+        os.remove(file + ".bk")
 
     # update config file
-    if kwargs['project_name'] is not None:
-        config['project_name_raw'] = kwargs['project_name']
-        config['project_name'] = kwargs['project_name'].replace(' ', '_')
+    if kwargs["project_name"] is not None:
+        config["project_name_raw"] = kwargs["project_name"]
+        config["project_name"] = kwargs["project_name"].replace(" ", "_")
 
-    if kwargs['authors'] is not None:
-        config['authors'] = kwargs['authors']
+    if kwargs["authors"] is not None:
+        config["authors"] = kwargs["authors"]
 
-    if kwargs['company'] is not None:
-        config['company'] = kwargs['company']
+    if kwargs["company"] is not None:
+        config["company"] = kwargs["company"]
 
-    if kwargs['license'] is not None:
-        config['license_title'] = LICENSES[kwargs['license']]['title']
+    if kwargs["license"] is not None:
+        config["license_title"] = LICENSES[kwargs["license"]]["title"]
         # copy the new license
-        with open(LICENSES[kwargs['license']]['path'], 'r') as fid:
+        with open(LICENSES[kwargs["license"]]["path"], "r") as fid:
             license_content = fid.read()
-            license_content = license_content.replace('<COPYRIGHT HOLDER>', config['company'])
-            license_content = license_content.replace('<YEAR>', config['year'])
+            license_content = license_content.replace(
+                "<COPYRIGHT HOLDER>", config["company"]
+            )
+            license_content = license_content.replace("<YEAR>", config["year"])
 
-        with open(os.path.join(path, 'LICENSE.txt'), 'w') as fid:
+        with open(os.path.join(path, "LICENSE.txt"), "w") as fid:
             fid.write(license_content)
 
-    with open(config_file, 'w') as fid:
+    with open(config_file, "w") as fid:
         fid.write(json.dumps(config, indent=2))
 
 
@@ -320,81 +338,85 @@ def create_file(**kwargs):
     )
 
     # recursively find the mlproject configuration file
-    if kwargs['path'] is None:
-        path = os.path.abspath('.')
+    if kwargs["path"] is None:
+        path = os.path.abspath(".")
     else:
-        path = kwargs['path']
+        path = kwargs["path"]
 
     if not os.path.exists(path):
-        raise RuntimeError(f'the given --path ({path}) doesnt exist')
+        raise RuntimeError(f"the given --path ({path}) doesnt exist")
 
     if not os.path.isdir(path):
-        raise RuntimeError(f'the given --path ({path}) is not a directory')
+        raise RuntimeError(f"the given --path ({path}) is not a directory")
 
-    if kwargs['filename'] is None:
-        raise RuntimeError('missing filename, please specify via --filename')
+    if kwargs["filename"] is None:
+        raise RuntimeError("missing filename, please specify via --filename")
 
-    if kwargs['description'] is None:
-        raise RuntimeError('missing description for this file, please specify via --desc')
+    if kwargs["description"] is None:
+        raise RuntimeError(
+            "missing description for this file, please specify via --desc"
+        )
 
-    filename = kwargs['filename']
-    description = kwargs['description']
+    filename = kwargs["filename"]
+    description = kwargs["description"]
 
     config_file = None
     tmp_path = path
     while True:
-        if os.path.exists(os.path.join(tmp_path, '.mlproject.json')):
-            config_file = os.path.join(tmp_path, '.mlproject.json')
+        if os.path.exists(os.path.join(tmp_path, ".mlproject.json")):
+            config_file = os.path.join(tmp_path, ".mlproject.json")
             break
         else:
-            if tmp_path == '/':
+            if tmp_path == "/":
                 break
             else:
                 tmp_path = os.path.dirname(tmp_path)
 
     if config_file is not None:
-        logger.info(f'found mlproject configuration file in: {config_file}')
-        with open(config_file, 'r') as fid:
+        logger.info(f"found mlproject configuration file in: {config_file}")
+        with open(config_file, "r") as fid:
             config = json.loads(fid.read())
     else:
         config = None
 
-    if kwargs['authors'] is None:
+    if kwargs["authors"] is None:
         if config is None:
             authors = AUTHORS
         else:
-            authors = config['authors']
+            authors = config["authors"]
     else:
-        author_list = kwargs['authors'].split(';')
+        author_list = kwargs["authors"].split(";")
         authors = []
         for item in author_list:
-            name = item.split(',')[0]
-            emails = item.split(',')[1:]
-            authors.append({'name': name, 'emails': emails})
+            name = item.split(",")[0]
+            emails = item.split(",")[1:]
+            authors.append({"name": name, "emails": emails})
 
-    if kwargs['company'] is None:
+    if kwargs["company"] is None:
         if config is None:
             company = COMPANY
         else:
-            company = config['company']
+            company = config["company"]
     else:
-        company = kwargs['company']
+        company = kwargs["company"]
 
-    if kwargs['project_name'] is None:
+    if kwargs["project_name"] is None:
         if config is None:
-            raise RuntimeError('Found no setting for project name. Please specify via --project-name')
+            raise RuntimeError(
+                "Found no setting for project name. Please specify via --project-name"
+            )
         else:
-            project_name = config['project_name_raw']
+            project_name = config["project_name_raw"]
     else:
-        project_name = kwargs['project_name']
+        project_name = kwargs["project_name"]
 
-    if kwargs['license'] is None:
+    if kwargs["license"] is None:
         if config is None:
-            license_title = DEFAULT_LICENSE['title']
+            license_title = DEFAULT_LICENSE["title"]
         else:
-            license_title = config['license_title']
+            license_title = config["license_title"]
     else:
-        license_title = LICENSES[kwargs['license']]['title']
+        license_title = LICENSES[kwargs["license"]]["title"]
 
     # get current time
     today = date.today()
@@ -403,43 +425,43 @@ def create_file(**kwargs):
     month = today.month
 
     # 1st line
-    file_headers = cut_string(f'{filename}: {description}', max_length=100)
+    file_headers = cut_string(f"{filename}: {description}", max_length=100)
     max_len = max([len(x) for x in file_headers])
 
     header = [
         '"""',
         *file_headers,
-        '-' * max_len,
-        '',
-        '',
-        '* Copyright: {} {}'.format(year, company),
+        "-" * max_len,
+        "",
+        "",
+        "* Copyright: {} {}".format(year, company),
     ]
     # author strings
     author_strings = []
     for author in authors:
-        name = author['name']
-        emails = author['emails']
-        author_strings.append('{} ({})'.format(name, ', '.join(emails)))
+        name = author["name"]
+        emails = author["emails"]
+        author_strings.append("{} ({})".format(name, ", ".join(emails)))
 
-    author_strings = ', '.join(author_strings)
-    header.append(f'* Authors: {author_strings}')
-    header.append('* Date: {}-{:02d}-{:02d}'.format(year, month, day))
-    header.append('* Version: 0.0.1')
-    header.append('')
-    header.append(f'This is part of the {project_name} project')
-    header.append('')
-    header.append('License')
-    header.append('-------')
+    author_strings = ", ".join(author_strings)
+    header.append(f"* Authors: {author_strings}")
+    header.append("* Date: {}-{:02d}-{:02d}".format(year, month, day))
+    header.append("* Version: 0.0.1")
+    header.append("")
+    header.append(f"This is part of the {project_name} project")
+    header.append("")
+    header.append("License")
+    header.append("-------")
     header.append(license_title)
-    header.append('')
+    header.append("")
     header.append('"""')
 
     dst_file = os.path.join(path, filename)
-    content = '\n'.join(header)
-    with open(dst_file, 'w') as fid:
+    content = "\n".join(header)
+    with open(dst_file, "w") as fid:
         fid.write(content)
 
-    logger.info(f'complete creating {dst_file}')
+    logger.info(f"complete creating {dst_file}")
 
 
 def create_project(**kwargs):
@@ -456,145 +478,152 @@ def create_project(**kwargs):
 
     logger.info(f'creating a project from {kwargs["template"]} template')
 
-    if kwargs['project_name'] is None:
-        raise RuntimeError('--project-name is missing when calling "mlproject new-project"')
+    if kwargs["project_name"] is None:
+        raise RuntimeError(
+            '--project-name is missing when calling "mlproject new-project"'
+        )
 
-    if kwargs['company'] is None:
+    if kwargs["company"] is None:
         company = COMPANY
     else:
-        company = kwargs['company']
+        company = kwargs["company"]
 
-    if kwargs['authors'] is None:
+    if kwargs["authors"] is None:
         authors = AUTHORS
-        print(f'AUTHORS: {AUTHORS}')
+        print(f"AUTHORS: {AUTHORS}")
     else:
         # process authors into dictionary
-        authors_lst = kwargs['authors'].split(';')
+        authors_lst = kwargs["authors"].split(";")
         authors = []
         for item in authors_lst:
-            name = item.split(',')[0]
-            emails = item.split(',')[1:]
-            authors.append({'name': name, 'emails': emails})
+            name = item.split(",")[0]
+            emails = item.split(",")[1:]
+            authors.append({"name": name, "emails": emails})
 
-    if kwargs['license'] is None:
+    if kwargs["license"] is None:
         license = DEFAULT_LICENSE
     else:
-        if kwargs['license'] not in LICENSES:
+        if kwargs["license"] not in LICENSES:
             logger.warning(f'Unknown license type: {kwargs["license"]}')
-            logger.warning(f'The following licenses are supported: {LICENSES}')
+            logger.warning(f"The following licenses are supported: {LICENSES}")
             sys.exit(2)
         else:
-            license = LICENSES[kwargs['license']]
+            license = LICENSES[kwargs["license"]]
 
-    if kwargs['path'] is None:
-        kwargs['path'] = '.'
+    if kwargs["path"] is None:
+        kwargs["path"] = "."
     else:
-        if not os.path.exists(kwargs['path']):
-            logger.warning(f'the specified project path (--path) does not exist: {kwargs["path"]}')
+        if not os.path.exists(kwargs["path"]):
+            logger.warning(
+                f'the specified project path (--path) does not exist: {kwargs["path"]}'
+            )
             sys.exit(2)
 
     # create a new dir
-    project_name_raw = kwargs['project_name']
+    project_name_raw = kwargs["project_name"]
 
     # replace space with underscore
-    project_name = project_name_raw.replace(' ', '_')
-    proj_dir = os.path.join(kwargs['path'], project_name)
+    project_name = project_name_raw.replace(" ", "_")
+    proj_dir = os.path.join(kwargs["path"], project_name)
 
     # handle proj path
     if os.path.exists(proj_dir) and os.path.isdir(proj_dir):
-        logger.warning(f'there is already a directory in the given path {proj_dir}')
-        response = input(f'do you want to remove existing directory ({proj_dir}) (Y/N)?: ')
-        if response == 'Y':
+        logger.warning(f"there is already a directory in the given path {proj_dir}")
+        response = input(
+            f"do you want to remove existing directory ({proj_dir}) (Y/N)?: "
+        )
+        if response == "Y":
             shutil.rmtree(proj_dir)
             os.mkdir(proj_dir)
-            os.mkdir(os.path.join(proj_dir, 'configs'))
+            os.mkdir(os.path.join(proj_dir, "configs"))
         else:
             sys.exit(2)
     else:
         os.mkdir(proj_dir)
-        os.mkdir(os.path.join(proj_dir, 'configs'))
+        os.mkdir(os.path.join(proj_dir, "configs"))
 
-    template_dir = os.path.join(PACKAGE_DIR, 'templates', kwargs['template'])
+    template_dir = os.path.join(PACKAGE_DIR, "templates", kwargs["template"])
 
     # handle python files
     py_files = [
-        'data.py',
-        'entry.py',
-        'models.py',
-        'trainer.py',
-        'configs/config.py',
+        "data.py",
+        "entry.py",
+        "models.py",
+        "trainer.py",
+        "configs/config.py",
     ]
 
     for file in py_files:
         src_file = os.path.join(template_dir, file)
         dst_file = os.path.join(proj_dir, file)
         copy_py_file(
-            src_file,
-            dst_file,
-            company,
-            authors,
-            license['title'],
-            project_name_raw
+            src_file, dst_file, company, authors, license["title"], project_name_raw
         )
 
     # ----------- handle README.md -------------------------------
-    with open(os.path.join(template_dir, 'README.md'), 'r') as fid:
-        readme_lines = fid.read().split('\n')
+    with open(os.path.join(template_dir, "README.md"), "r") as fid:
+        readme_lines = fid.read().split("\n")
 
     # change the title
-    readme_lines[0] = f'# {project_name_raw}'
+    readme_lines[0] = f"# {project_name_raw}"
 
     # add authors
     for author in authors:
-        name = author['name']
-        emails = ', '.join(author['emails'])
-        readme_lines.append(f'{name} ({emails})')
+        name = author["name"]
+        emails = ", ".join(author["emails"])
+        readme_lines.append(f"{name} ({emails})")
 
-    readme_content = '\n'.join(readme_lines)
-    with open(os.path.join(proj_dir, 'README.md'), 'w') as fid:
+    readme_content = "\n".join(readme_lines)
+    with open(os.path.join(proj_dir, "README.md"), "w") as fid:
         fid.write(readme_content)
 
     # --------- copy license --------------------------------
 
     # open the license and put company as the copyright holder
     current_year = date.today().year
-    with open(license['path'], 'r') as fid:
+    with open(license["path"], "r") as fid:
         license_content = fid.read()
-    license_content = license_content.replace('<COPYRIGHT HOLDER>', company)
-    license_content = license_content.replace('<YEAR>', str(current_year))
+    license_content = license_content.replace("<COPYRIGHT HOLDER>", company)
+    license_content = license_content.replace("<YEAR>", str(current_year))
 
     # write license
-    with open(os.path.join(proj_dir, 'LICENSE.txt'), 'w') as fid:
+    with open(os.path.join(proj_dir, "LICENSE.txt"), "w") as fid:
         fid.write(license_content)
 
     # --------- copy dependencies ---------------------------
-    shutil.copy(os.path.join(template_dir, 'requirements.txt'), os.path.join(proj_dir, 'requirements.txt'))
+    shutil.copy(
+        os.path.join(template_dir, "requirements.txt"),
+        os.path.join(proj_dir, "requirements.txt"),
+    )
 
     # --------- copy ignore file ----------------------------
-    shutil.copy(os.path.join(template_dir, '.gitignore'), os.path.join(proj_dir, '.gitignore'))
+    shutil.copy(
+        os.path.join(template_dir, ".gitignore"), os.path.join(proj_dir, ".gitignore")
+    )
 
     # --------- write mlconfig file -------------------------
     mlconfig = {
-        'project_name_raw': project_name_raw,
-        'project_name': project_name,
-        'company': company,
-        'authors': authors,
-        'license_title': license['title'],
-        'year': str(current_year),
+        "project_name_raw": project_name_raw,
+        "project_name": project_name,
+        "company": company,
+        "authors": authors,
+        "license_title": license["title"],
+        "year": str(current_year),
     }
-    with open(os.path.join(proj_dir, '.mlproject.json'), 'w') as fid:
+    with open(os.path.join(proj_dir, ".mlproject.json"), "w") as fid:
         fid.write(json.dumps(mlconfig, indent=2))
 
-    logger.info(f'successfully created a new project at {proj_dir}')
+    logger.info(f"successfully created a new project at {proj_dir}")
+
 
 def cut_string(text, max_length=100):
-    line = ''
+    line = ""
     outputs = []
-    words = text.split(' ')
+    words = text.split(" ")
     for word in words:
-        if len(line + ' ' + word) < max_length:
+        if len(line + " " + word) < max_length:
             if len(line) > 0:
-                line = line + ' ' + word
+                line = line + " " + word
             else:
                 line = line + word
         else:
@@ -604,6 +633,7 @@ def cut_string(text, max_length=100):
     outputs.append(line)
 
     return outputs
+
 
 def copy_py_file(src_file, dst_file, company, authors, license_title, project_name):
     """
@@ -627,9 +657,8 @@ def copy_py_file(src_file, dst_file, company, authors, license_title, project_na
 
     """
 
-
-    with open(src_file, 'r') as fid:
-        lines = fid.read().split('\n')
+    with open(src_file, "r") as fid:
+        lines = fid.read().split("\n")
 
     file_header = lines[1]
     header_end_idx = None
@@ -645,31 +674,31 @@ def copy_py_file(src_file, dst_file, company, authors, license_title, project_na
     header = [
         '"""',
         file_header,
-        '-' * len(file_header),
-        '',
-        '',
-        '* Copyright: {} {}'.format(year, company),
+        "-" * len(file_header),
+        "",
+        "",
+        "* Copyright: {} {}".format(year, company),
     ]
     author_strings = []
     for author in authors:
-        name = author['name']
-        emails = author['emails']
-        author_strings.append('{} ({})'.format(name, ', '.join(emails)))
-    author_strings = ', '.join(author_strings)
-    header.append(f'* Authors: {author_strings}')
-    header.append('* Date: {}-{:02d}-{:02d}'.format(year, month, day))
-    header.append('* Version: 0.0.1')
-    header.append('')
-    header.append(f'This is part of the {project_name} project')
-    header.append('')
-    header.append('License')
-    header.append('-------')
+        name = author["name"]
+        emails = author["emails"]
+        author_strings.append("{} ({})".format(name, ", ".join(emails)))
+    author_strings = ", ".join(author_strings)
+    header.append(f"* Authors: {author_strings}")
+    header.append("* Date: {}-{:02d}-{:02d}".format(year, month, day))
+    header.append("* Version: 0.0.1")
+    header.append("")
+    header.append(f"This is part of the {project_name} project")
+    header.append("")
+    header.append("License")
+    header.append("-------")
     header.append(license_title)
-    header.append('')
+    header.append("")
     header.append('"""')
 
-    content = '\n'.join([str(line) for line in (header + lines[header_end_idx:])])
-    with open(dst_file, 'w') as fid:
+    content = "\n".join([str(line) for line in (header + lines[header_end_idx:])])
+    with open(dst_file, "w") as fid:
         fid.write(content)
 
 
@@ -677,124 +706,130 @@ def initialize(**kwargs):
     """
     init the configurations for mlproject tool
     """
-    logger.info('initializing mlproject ...')
+    logger.info("initializing mlproject ...")
 
     # load default configs
     package_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    with open(os.path.join(package_dir, '.configuration.json'), 'r') as fid:
+    with open(os.path.join(package_dir, ".configuration.json"), "r") as fid:
         default_config = json.loads(fid.read())
 
-    if kwargs['authors'] is None:
+    if kwargs["authors"] is None:
         logger.warning('--authors must be provided for command "mlproject init"')
         sys.exit(2)
     else:
         # authors are separated by semicolon
-        author_list = kwargs['authors'].split(';')
+        author_list = kwargs["authors"].split(";")
         authors = []
         for item in author_list:
-            name = item.split(',')[0]
-            emails = item.split(',')[1:]
-            authors.append({'name': name, 'emails': emails})
-        default_config['AUTHORS'] = authors
+            name = item.split(",")[0]
+            emails = item.split(",")[1:]
+            authors.append({"name": name, "emails": emails})
+        default_config["AUTHORS"] = authors
 
-    if kwargs['company'] is None:
+    if kwargs["company"] is None:
         logger.warning('--company must be provided for command "mlproject init"')
         sys.exit(2)
     else:
-        default_config['COMPANY'] = kwargs['company']
+        default_config["COMPANY"] = kwargs["company"]
 
     # overwrite values provided from users
-    if kwargs['nb_parallel_jobs'] is not None:
-        default_config['NB_PARALLEL_JOBS'] = kwargs['nb_parallel_jobs']
+    if kwargs["nb_parallel_jobs"] is not None:
+        default_config["NB_PARALLEL_JOBS"] = kwargs["nb_parallel_jobs"]
 
-    if kwargs['disable_warning'] is not None:
-        default_config['DISABLE_WARNING'] = kwargs['disable_warning']
+    if kwargs["disable_warning"] is not None:
+        default_config["DISABLE_WARNING"] = kwargs["disable_warning"]
 
-    if kwargs['log_level'] is not None:
-        default_config['LOG_LEVEL'] = kwargs['log_level']
+    if kwargs["log_level"] is not None:
+        default_config["LOG_LEVEL"] = kwargs["log_level"]
 
     # handle license
-    if kwargs['license'] is not None:
-        if kwargs['license'] not in default_config['LICENSES']:
-            logger.warning(f'the specified license ({kwargs["license"]}) is not supported')
-            logger.warning('setting proprietary license as the default now')
-            default_config['DEFAULT_LICENSE'] = default_config['LICENSES']['proprietary']
+    if kwargs["license"] is not None:
+        if kwargs["license"] not in default_config["LICENSES"]:
+            logger.warning(
+                f'the specified license ({kwargs["license"]}) is not supported'
+            )
+            logger.warning("setting proprietary license as the default now")
+            default_config["DEFAULT_LICENSE"] = default_config["LICENSES"][
+                "proprietary"
+            ]
         else:
-            default_config['DEFAULT_LICENSE'] = default_config['LICENSES'][kwargs['license']]
+            default_config["DEFAULT_LICENSE"] = default_config["LICENSES"][
+                kwargs["license"]
+            ]
     else:
-        default_config['DEFAULT_LICENSE'] = default_config['LICENSES']['proprietary']
+        default_config["DEFAULT_LICENSE"] = default_config["LICENSES"]["proprietary"]
 
     # write config
-    root_dir = os.path.join(os.path.expanduser('~'), '.mlproject')
+    root_dir = os.path.join(os.path.expanduser("~"), ".mlproject")
     if not os.path.exists(root_dir):
         os.mkdir(root_dir)
-    if not os.path.exists(os.path.join(root_dir, 'licenses')):
-        os.mkdir(os.path.join(root_dir, 'licenses'))
+    if not os.path.exists(os.path.join(root_dir, "licenses")):
+        os.mkdir(os.path.join(root_dir, "licenses"))
 
-    for _, license in default_config['LICENSES'].items():
-        src_file = os.path.join(package_dir, license['path'])
-        dst_file = os.path.join(root_dir, license['path'])
+    for _, license in default_config["LICENSES"].items():
+        src_file = os.path.join(package_dir, license["path"])
+        dst_file = os.path.join(root_dir, license["path"])
         shutil.copy(src_file, dst_file)
-        license['path'] = dst_file
+        license["path"] = dst_file
 
-    config_file = os.path.join(root_dir, 'configurations.json')
-    with open(config_file, 'w') as fid:
+    config_file = os.path.join(root_dir, "configurations.json")
+    with open(config_file, "w") as fid:
         fid.write(json.dumps(default_config, indent=2))
 
-    logger.info(f'complete writing default configuration to {config_file}')
+    logger.info(f"complete writing default configuration to {config_file}")
 
 
 @logger.catch
 def main():
     known_args, unknown_args = parse_args()
     for arg in unknown_args:
-        logger.warning(f'unknown command or argument: {arg}')
+        logger.warning(f"unknown command or argument: {arg}")
         sys.exit(2)
 
     # handle different primaryc commands
-    if known_args.command == 'init':
+    if known_args.command == "init":
         # initialization
         args = {
-            'company': known_args.company,
-            'authors': known_args.authors,
-            'nb_parallel_jobs': known_args.nb_parallel_jobs,
-            'disable_warning': known_args.disable_warning,
-            'log_level': known_args.log_level,
-            'license': known_args.license,
+            "company": known_args.company,
+            "authors": known_args.authors,
+            "nb_parallel_jobs": known_args.nb_parallel_jobs,
+            "disable_warning": known_args.disable_warning,
+            "log_level": known_args.log_level,
+            "license": known_args.license,
         }
         initialize(**args)
-    elif known_args.command == 'new-project':
+    elif known_args.command == "new-project":
         args = {
-            'company': known_args.company,
-            'authors': known_args.authors,
-            'project_name': known_args.project_name,
-            'path': known_args.path,
-            'license': known_args.license,
-            'template': known_args.template,
+            "company": known_args.company,
+            "authors": known_args.authors,
+            "project_name": known_args.project_name,
+            "path": known_args.path,
+            "license": known_args.license,
+            "template": known_args.template,
         }
         create_project(**args)
-    elif known_args.command == 'new-file':
+    elif known_args.command == "new-file":
         args = {
-            'company': known_args.company,
-            'authors': known_args.authors,
-            'project_name': known_args.project_name,
-            'path': known_args.path,
-            'license': known_args.license,
-            'filename': known_args.filename,
-            'description': known_args.desc,
+            "company": known_args.company,
+            "authors": known_args.authors,
+            "project_name": known_args.project_name,
+            "path": known_args.path,
+            "license": known_args.license,
+            "filename": known_args.filename,
+            "description": known_args.desc,
         }
         create_file(**args)
 
-    elif known_args.command == 'modify-metadata':
+    elif known_args.command == "modify-metadata":
         # modify project metadata
         args = {
-            'company': known_args.company,
-            'authors': known_args.authors,
-            'project_name': known_args.project_name,
-            'license': known_args.license,
+            "company": known_args.company,
+            "authors": known_args.authors,
+            "project_name": known_args.project_name,
+            "license": known_args.license,
         }
         modify_metadata(**args)
-    elif known_args.command == 'launch-exp':
+    elif known_args.command == "launch-exp":
         exp_launcher(
             known_args.entry_script,
             known_args.config_path,
@@ -804,7 +839,7 @@ def main():
             known_args.nb_parallel_exp,
             known_args.worker_log_prefix,
         )
-    elif known_args.command == 'summarize-exp':
+    elif known_args.command == "summarize-exp":
         summarize_experiments(
             known_args.config_path,
             known_args.entry_script,
@@ -813,5 +848,6 @@ def main():
             known_args.metrics,
         )
 
-if (__name__ == "__main__"):
+
+if __name__ == "__main__":
     main()

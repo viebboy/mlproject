@@ -29,12 +29,15 @@ setuptools.setup(
     description="Toolkit to build Machine Learning projects",
     long_description="Toolkit to build Machine Learning projects",
     long_description_content_type="text",
-    license='LICENSE.txt',
+    license="LICENSE.txt",
     packages=setuptools.find_packages(),
-    classifiers=['Operating System :: POSIX', ],
+    classifiers=[
+        "Operating System :: POSIX",
+    ],
     entry_points={
-        'console_scripts': [
-            'mlproject = mlproject.cli:main',
+        "console_scripts": [
+            "mlproject = mlproject.cli:main",
+            "mlproject-utils = mlproject.utils.cli:main",
         ]
-    }
+    },
 )

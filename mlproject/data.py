@@ -26,6 +26,8 @@ import os
 import numpy as np
 import random
 from tqdm import tqdm
+from PIL import Image
+import io as IO
 
 from mlproject.constants import (
     DISABLE_WARNING,
@@ -68,6 +70,57 @@ def write_cache_pickle_safe(
 
     record.close()
     logger.debug(f"complete writing cache file: {bin_file}")
+
+
+@logger.catch
+def write_image_cache(
+    image_dir: str,
+    binary_file: str,
+    index_file: str,
+    nb_shard: int,
+    shard_index: int,
+    decode: bool = False,
+):
+    image_files = [os.pat.join(image_dir, f) for f in os.listdir(image_dir)]
+    logger.info(f"Found {len(image_files)} images")
+    image_files.sort()
+    file_per_shard = int(np.ceil(len(image_files) / nb_shard))
+
+    logger.info(f"creating shard index: {shard_index}")
+    start_idx = shard_index * file_per_shard
+    stop_idx = min((shard_index + 1) * file_per_shard, len(image_files))
+    blob = BinaryBlob(binary_file, index_file, "w")
+    related_files = image_files[start_idx:stop_idx]
+    nb_broken = 0
+    for file_idx in tqdm.tqdm(range(len(related_files))):
+        # check if image is not broken
+        try:
+            img = Image.open(related_files[file_idx])
+            if img.size != (0, 0):
+                is_valid = True
+            else:
+                is_valid = False
+                nb_broken += 1
+            img.close()
+        except BaseException:
+            is_valid = False
+            nb_broken += 1
+
+        if is_valid:
+            path = related_files[file_idx]
+            if not decode:
+                with open(path, "rb") as img_fid:
+                    byte_content = img_fid.read()
+            else:
+                byte_content = dill.dumps(np.array(Image.open(path)))
+
+            basename = os.path.basename(path)
+            blob.write_index(file_idx, (basename, byte_content))
+    blob.close()
+    logger.info(
+        f"Found {nb_broken}/{len(image_files)} broken images in shard index: {shard_index}"
+    )
+    logger.info(f"Complete writing shard index: {shard_index}")
 
 
 class BinaryBlob(TorchDataset):
@@ -223,6 +276,160 @@ class BinaryBlob(TorchDataset):
             self._fid.close()
         if self._idx_fid is not None:
             self._idx_fid.close()
+
+
+class BinaryImageBlob:
+    """
+    Abstraction to create binary blob storage for images
+    """
+
+    def __init__(
+        self,
+        image_dir: str,
+        binary_file_dir: str,
+        nb_shard: int,
+        save_decode: bool,
+    ):
+        self._binary_files = [
+            os.path.join(binary_file_dir, "data_{:03d}.bin".format(i))
+            for i in range(nb_shard)
+        ]
+        self._index_files = [
+            os.path.join(binary_file_dir, "data_{:03d}.idx".format(i))
+            for i in range(nb_shard)
+        ]
+        self._map_file = os.path.join(binary_file_dir, "filename_to_index.txt")
+        self._decode = save_decode
+
+        # check if image_dir exists
+        if not os.path.exists(binary_file_dir):
+            os.makedirs(binary_file_dir, exist_ok=True)
+            has_cache = False
+        else:
+            if len(os.listdir(image_dir)) == 0:
+                has_cache = False
+            else:
+                has_cache = True
+                if not os.path.exists(self._map_file):
+                    has_cache = False
+
+                for file in self._binary_files + self._index_files:
+                    if not os.path.exists(file):
+                        has_cache = False
+                        break
+
+                if not has_cache:
+                    raise RuntimeError(
+                        f"Given binary_file_dir ({binary_file_dir}) is not empty "
+                        "but does not contain all required files. Please remove "
+                    )
+
+        if has_cache:
+            self._read_cache()
+        else:
+            self._create_cache(image_dir, nb_shard)
+            self._read_cache()
+
+    def _read_cache(self):
+        logger.info("Reading from binary files")
+        self._blobs = [
+            BinaryBlob(b, i, "r") for b, i in zip(self._binary_files, self._index_files)
+        ]
+
+        self._img_to_idx = {}
+        self._indices = []
+        with open(self._map_file, "r") as fid:
+            content = fid.read().split("\n")
+            if content[-1] == "":
+                content = content[:-1]
+            self._decode = bool(int(content[0].split(":")[1]))
+            content = content[1:]
+
+            for row in content:
+                img_name, shard_idx, img_idx, int_idx = row.split(",")
+                shard_idx = int(shard_idx)
+                img_idx = int(img_idx)
+                self._img_to_idx[img_name] = (shard_idx, img_idx, int_idx)
+                self._indices.append((shard_idx, img_idx))
+
+    def _create_cache(self, image_dir: str, nb_shard: int):
+        image_files = [os.pat.join(image_dir, f) for f in os.listdir(image_dir)]
+        logger.info(f"Found {len(image_files)} images")
+        image_files.sort()
+        file_per_shard = int(np.ceil(len(image_files) / nb_shard))
+        map_file_fid = open(self._map_file, "w")
+        map_file_fid.write("decode:{}\n".format(int(self._decode)))
+
+        logger.info("Writing map file")
+        count = 0
+        for shard_idx in range(nb_shard):
+            start_idx = shard_idx * file_per_shard
+            stop_idx = min((shard_idx + 1) * file_per_shard, len(image_files))
+            related_files = image_files[start_idx:stop_idx]
+            for file_idx in tqdm.tqdm(range(len(related_files))):
+                path = related_files[file_idx]
+                basename = os.path.basename(path)
+                map_file_fid.write(f"{basename},{shard_idx},{file_idx},{count}\n")
+                count += 1
+        map_file_fid.close()
+
+        logger.info("Writing cache files")
+        joblib.Parallel(n_jobs=NB_PARALLEL_JOBS, backend="loky")(
+            joblib.delayed(write_image_cache)(
+                image_dir,
+                binary_file,
+                index_file,
+                nb_shard,
+                shard_idx,
+                self._decode,
+            )
+            for shard_idx, (binary_file, index_file) in enumerate(
+                zip(self._binary_files, self._index_files)
+            )
+        )
+        logger.info("Complete writing cache files")
+
+    def __len__(self):
+        return len(self._indices)
+
+    def __getitem__(self, idx):
+        shard_idx, img_idx = self._indices[idx]
+        bytes_ = self._blobs[shard_idx].read_index(img_idx)
+        if self._decode:
+            # if the saved bytes have been decoded into array
+            # we need to use dill to load it
+            return dill.loads(bytes_)
+        else:
+            # bytes were saved as is
+            # so we need Pillow to read
+            return np.array(
+                Image.open(IO.BytesIO(self._blobs[shard_idx].read_index(img_idx)))
+            )
+
+    def image_files(self):
+        return list(self._img_to_idx.keys())
+
+    def get_image_by_name(self, name):
+        if name not in self._img_to_idx:
+            raise KeyError(f"Image {name} not found in the blob")
+
+        shard_idx, img_idx, _ = self._img_to_idx[name]
+        bytes_ = self._blobs[shard_idx].read_index(img_idx)
+        if self._decode:
+            # if the saved bytes have been decoded into array
+            # we need to use dill to load it
+            return dill.loads(bytes_)
+        else:
+            # bytes were saved as is
+            # so we need Pillow to read
+            return np.array(
+                Image.open(IO.BytesIO(self._blobs[shard_idx].read_index(img_idx)))
+            )
+
+    def get_index_by_name(self, name):
+        if name not in self._img_to_idx:
+            raise KeyError(f"Image {name} not found in the blob")
+        return self._img_to_idx[name][2]
 
 
 class CacheDataset(TorchDataset):
