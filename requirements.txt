@@ -13,3 +13,4 @@ GitPython
 lightning
 onnx
 pygraphviz
+requests
