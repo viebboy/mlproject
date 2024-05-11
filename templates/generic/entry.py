@@ -88,12 +88,15 @@ def parse_args() -> argparse.Namespace:
     else:
         args.test_mode = False
 
+    kwargs = {}
     for kwarg in args.kwargs:
         key, value = kwarg.split("=")
         if key not in SUPPORTED_KWARGS:
             raise ValueError(f"Unsupported kwarg {key}")
 
-    args.kwargs = {key: SUPPORTED_KWARGS[key](value) for key, value in args.kwargs}
+        kwargs[key] = SUPPORTED_KWARGS[key](value)
+
+    args.kwargs = kwargs
 
     return args
 
