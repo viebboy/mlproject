@@ -108,7 +108,7 @@ def summarize_experiments(
 
     # parse results from each experiment run
     result_dirs = [os.path.join(output_dir, f) for f in os.listdir(output_dir)]
-    result_dirs = [f for f in result_dirs if os.path.isdir(f)]
+    result_dirs = sorted([f for f in result_dirs if os.path.isdir(f)])
     if len(result_dirs) == 0:
         raise RuntimeError(f'Cannot find any results under {output_dir}')
 
@@ -116,7 +116,7 @@ def summarize_experiments(
     config_values = []
     for result_folder in result_dirs:
         # result_folder holds results of all trial runs for one experiment config
-        trial_run_results = [os.path.join(result_folder, f) for f in os.listdir(result_folder)]
+        trial_run_results = sorted([os.path.join(result_folder, f) for f in os.listdir(result_folder)])
         for folder in trial_run_results:
             if not os.path.isdir(folder):
                 raise RuntimeError(
