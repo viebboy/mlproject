@@ -12,5 +12,4 @@ pandas
 GitPython
 lightning
 onnx
-pygraphviz
 requests
