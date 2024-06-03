@@ -82,14 +82,23 @@ class Trainer(BaseTrainer):
             if epoch_ended:
                 break
 
-            pre_forward_stamp = time.perf_counter()
-            predictions = model(inputs)
-            post_forward_stamp = time.perf_counter()
+            is_accumulating = (
+                self.cur_minibatch + 1
+            ) % self.grad_accumulation_step != 0
 
-            # divide loss by grad_accumulation_step
-            loss = self.loss_function(predictions, labels) / self.grad_accumulation_step
-            self.FABRIC.backward(loss)
-            backward_stamp = time.perf_counter()
+            with self.FABRIC.no_backward_sync(model, enabled=is_accumulating):
+                pre_forward_stamp = time.perf_counter()
+                predictions = model.forward(inputs)
+                post_forward_stamp = time.perf_counter()
+
+                with self.FABRIC.autocast():
+                    # divide loss by grad_accumulation_step
+                    loss = (
+                        self.loss_function(predictions, labels)
+                        / self.grad_accumulation_step
+                    )
+                self.FABRIC.backward(loss)
+                backward_stamp = time.perf_counter()
 
             # accumulate loss value for printing and checkpointing
             self.accumulated_loss += loss.item()
@@ -198,9 +207,10 @@ class Trainer(BaseTrainer):
                 if minibatch_idx == total_minibatch:
                     break
 
-                predictions = model(inputs)
-                for m in metrics:
-                    m.update(predictions=predictions, labels=labels)
+                predictions = model.forward(inputs)
+                with self.FABRIC.autocast():
+                    for m in metrics:
+                        m.update(predictions=predictions, labels=labels)
 
         # gather the values from all processes
         # note here that we are collecting the metric object
