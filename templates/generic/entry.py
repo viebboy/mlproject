@@ -120,7 +120,7 @@ def load_config(file: str, index: str, test_mode: bool) -> tuple[dict, str, str]
     config["config_file"] = file
     config["config_index"] = index
 
-    repo_info = get_repo_info(os.path.abspath(__file__))
+    repo_info = get_repo_info(os.path.dirname(os.path.abspath(__file__)))
     config["git_url"] = repo_info["git_url"]
     config["git_branch"] = repo_info["git_branch"]
     config["git_commit"] = repo_info["git_commit"]
