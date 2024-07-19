@@ -460,9 +460,15 @@ class Trainer:
         with open(self.final_performance_file, "wb") as fid:
             dill.dump(performance, fid, recurse=True)
 
+        # get the original module
+        if self.FABRIC.world_size == 1:
+            module = model._forward_module
+        else:
+            module = model._forward_module.module
+
         # save torch checkpoint
         if self.FABRIC.is_global_zero:
-            torch.save(model, self.final_checkpoint_file)
+            torch.save(module, self.final_checkpoint_file)
             self.logger.info(f"save final model in {self.final_checkpoint_file}")
         self.FABRIC.barrier()
 
