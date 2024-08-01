@@ -26,6 +26,7 @@ import os
 import numpy as np
 import random
 from tqdm import tqdm
+import copy
 
 from mlproject.constants import (
     DISABLE_WARNING,
@@ -147,6 +148,9 @@ class BinaryBlob(TorchDataset):
 
     def __exit__(self, *args):
         self.close()
+
+    def get_indices(self):
+        return copy.deepcopy(self._indices)
 
     def write_index(self, index: int, content):
         assert isinstance(index, int)
