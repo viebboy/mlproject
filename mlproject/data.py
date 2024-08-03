@@ -229,6 +229,39 @@ class BinaryBlob(TorchDataset):
             self._idx_fid.close()
 
 
+class BinaryBlobSet:
+    def __init__(self, path: str):
+        binary_files = [
+            os.path.join(path, f) for f in os.listdir(path) if f.endswith(".bin")
+        ]
+        index_files = [
+            os.path.join(path, f) for f in os.listdir(path) if f.endswith(".idx")
+        ]
+
+        binary_files.sort()
+        index_files.sort()
+        self._blobs = []
+        for bin_file, idx_file in zip(binary_files, index_files):
+            self._blobs.append(BinaryBlob(bin_file, idx_file, mode="r"))
+
+        self._blob_sizes = [len(blob) for blob in self._blobs]
+        self._boundary = np.cumsum(self._blob_sizes)
+
+    def __len__(self):
+        return sum(self._blob_sizes)
+
+    def __getitem__(self, idx):
+        blob_idx = None
+        for i in range(len(self._boundary)):
+            if idx < self._boundary[i]:
+                blob_idx = i
+                break
+        if blob_idx is None:
+            raise IndexError()
+
+        return self._blobs[blob_idx][idx - self._boundary[blob_idx]]
+
+
 class CacheDataset(TorchDataset):
     """
     Wrapper to cache a given dataset in BinaryBlob formats
