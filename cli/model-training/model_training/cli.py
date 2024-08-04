@@ -69,7 +69,7 @@ def add_train_parser(subparsers):
         "--index",
         type=int,
         default=None,
-        help="config index",
+        help="config index. If not provided, train all configs",
     )
     parser.add_argument(
         "--device",
