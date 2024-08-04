@@ -29,6 +29,7 @@ from mlproject.distributed_trainer import (
     get_multiplicative_lr_scheduler,
     Trainer,
 )
+from model_training.template.config import ALL_CONFIGS as TEMPLATE_CONFIG
 from swift_loader import SwiftLoader
 import importlib.util
 import pprint
@@ -180,6 +181,7 @@ def get_trainer(config: dict, accelerator: str):
         use_progress_bar=config["use_progress_bar"],
         test_mode=config["test_mode"],
         retain_metric_objects=config["retain_metric_objects"],
+        load_best=config["load_best"],
     )
 
     return trainer
@@ -230,6 +232,15 @@ def validate_config_module(config_module, path):
     for field in required_fields:
         if not hasattr(config_module, field):
             raise RuntimeError(f"config file {path} is missing field: {field}")
+
+    """
+    Check if ALL_CONFIGS have required keys
+    """
+    for field in TEMPLATE_CONFIG.keys():
+        if field not in config_module.ALL_CONFIGS:
+            raise RuntimeError(
+                f"config file {path} is missing field: {field} in ALL_CONFIGS"
+            )
 
 
 def load_config(file: str, index: str, test_mode: bool) -> tuple[dict, str, str]:

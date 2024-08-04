@@ -102,7 +102,7 @@ ALL_CONFIGS = {
     "max_checkpoint": ConfigValue(5),
     # load best: whether to load the best checkpoint based on train or val (if exists)
     # monitor_metric
-    "load_best": ConfigValue(False),
+    "load_best": ConfigValue(True),
     # print frequency: minibatch interval to print loss
     "print_freq": ConfigValue(20),  # print loss value every 20 minibatch
     # synchronized_print: if True, only print from main process

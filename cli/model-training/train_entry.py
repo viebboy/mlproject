@@ -25,26 +25,25 @@ from model_training.tools import (
     dispose_data_loader,
     get_trainer,
     get_model,
+    prepare_directories,
+    print_config,
 )
 
 
 def main(
-    exp_config: dict,
+    config: dict,
     device: str,
     nb_consumer: int,
     cli_kwargs: dict = {},
 ) -> None:
     # overwrite values from cli kwargs
     for key, value in cli_kwargs.items():
-        exp_config[key] = value
+        config[key] = value
 
     # print config
     if "MLPROJECT_MAIN_PROCESS" not in os.environ:
-        print_config(exp_config)
+        print_config(config)
         os.environ["MLPROJECT_MAIN_PROCESS"] = "True"
-
-    # create a copy of the original config for each trial
-    config = copy.deepcopy(exp_config)
 
     # assign trial index
     config["nb_consumer"] = nb_consumer
