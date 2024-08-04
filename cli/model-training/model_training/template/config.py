@@ -67,6 +67,11 @@ DATA_LOADER = {
     "worker_per_consumer": 4,
 }
 
+MODEL = {
+    "implementation": "fill_path_to_implementation",
+    "arguments": {},
+}
+
 ALL_CONFIGS = {
     "output_dir": ConfigValue("fill_path_to_output_dir_that_contains_all_results"),
     "n_epoch": ConfigValue(20),
@@ -74,6 +79,8 @@ ALL_CONFIGS = {
     "dataset": ConfigValue(DATASET),
     # dataloader
     "dataloader": ConfigValue(DATA_LOADER),
+    # model config
+    "model": ConfigValue(MODEL),
     # loss config
     "loss": ConfigValue(LOSS),  # define different loss setup here
     # metric config

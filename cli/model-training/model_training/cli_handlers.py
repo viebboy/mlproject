@@ -35,11 +35,13 @@ def write_template_handler(args: argparse.Namespace) -> None:
     dataset_file = os.path.join(template_dir, "dataset.py")
     loss_file = os.path.join(template_dir, "loss.py")
     metric_file = os.path.join(template_dir, "metric.py")
+    model_file = os.path.join(template_dir, "model.py")
 
     shutil.copy(config_file, os.path.join(args.path, "config.py"))
     shutil.copy(dataset_file, os.path.join(args.path, "dataset.py"))
     shutil.copy(loss_file, os.path.join(args.path, "loss.py"))
     shutil.copy(metric_file, os.path.join(args.path, "metric.py"))
+    shutil.copy(model_file, os.path.join(args.path, "model.py"))
 
 
 def train_single_config_handler(args: argparse.Namespace) -> None:
