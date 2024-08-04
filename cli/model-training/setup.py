@@ -1,5 +1,5 @@
 import setuptools
-from ml.version import __version__
+from model_training.version import __version__
 
 
 setuptools.setup(
@@ -17,7 +17,7 @@ setuptools.setup(
     ],
     entry_points={
         "console_scripts": [
-            "model-training = model-training.cli:main",
+            "model-training = model_training.cli:main",
         ]
     },
 )
