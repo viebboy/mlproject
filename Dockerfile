@@ -54,4 +54,6 @@ RUN pip install --no-cache-dir -e /py_libs/mlproject
 RUN pip install --no-cache-dir -r /py_libs/mlproject/cli/model-training/requirements.txt
 RUN pip install --no-cache-dir -e /py_libs/mlproject/cli/model-training
 
+ENV PATH="/home/${USERNAME}/.local/bin:${PATH}"
+
 WORKDIR /
