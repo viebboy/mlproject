@@ -31,6 +31,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN groupadd -g ${GID} ${GROUPNAME} && \
   useradd -m -u ${UID} -g ${GROUPNAME} ${USERNAME}
 
+RUN mkdir /py_libs
+RUN chown ${USERNAME}:${GROUPNAME} /py_libs
+
 # Set the user to the created user
 USER ${USERNAME}
 
@@ -38,17 +41,17 @@ USER ${USERNAME}
 RUN python -m pip install --upgrade pip
 
 # swift loader
-RUN git clone https://github.com/viebboy/swift-loader.git /swift-loader
-RUN pip install --no-cache-dir -r /swift-loader/requirements.txt
-RUN pip install --no-cache-dir -e /swift-loader
+RUN git clone https://github.com/viebboy/swift-loader.git /py_libs/swift-loader
+RUN pip install --no-cache-dir -r /py_libs/swift-loader/requirements.txt
+RUN pip install --no-cache-dir -e /py_libs/swift-loader
 
 # install mlproject
-COPY --chown=${USERNAME}:${GROUPNAME} ./ /mlproject
-RUN pip install --no-cache-dir -r /mlproject/requirements.txt
-RUN pip install --no-cache-dir -e /mlproject
+COPY --chown=${USERNAME}:${GROUPNAME} ./ /py_libs/mlproject
+RUN pip install --no-cache-dir -r /py_libs/mlproject/requirements.txt
+RUN pip install --no-cache-dir -e /py_libs/mlproject
 
 # install model-training
-RUN pip install --no-cache-dir -r /mlproject/cli/model-training/requirements.txt
-RUN pip install --no-cache-dir -e /mlproject/cli/model-training
+RUN pip install --no-cache-dir -r /py_libs/mlproject/cli/model-training/requirements.txt
+RUN pip install --no-cache-dir -e /py_libs/mlproject/cli/model-training
 
-WORKDIR /${PACKAGE_NAME}
+WORKDIR /
