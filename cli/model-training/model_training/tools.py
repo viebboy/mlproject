@@ -228,7 +228,7 @@ def get_config(config_module, index):
 
 
 def validate_config_module(config_module, path):
-    required_fields = ["NAME", "DESCRIPTION", "ALL_CONFIGS"]
+    required_fields = ["NAME", "DESC", "ALL_CONFIGS"]
     for field in required_fields:
         if not hasattr(config_module, field):
             raise RuntimeError(f"config file {path} is missing field: {field}")
@@ -282,12 +282,11 @@ def prepare_directories(config: dict):
     config_index = config["config_index"]
     config_file = config["config_file"]
     # output directory path has the following structure:
-    # user_given_dir/config_name/config_index/trial_index/
+    # user_given_dir/config_name/config_index/
     output_dir = os.path.join(
         config["output_dir"],
         config_name,
         "config_index={:09d}".format(config_index),
-        "trial_index={:09d}".format(config["trial_index"]),
     )
     # under the output dir is another subdir for checkpoints
     checkpoint_dir = os.path.join(output_dir, "checkpoints")
