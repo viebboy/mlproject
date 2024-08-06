@@ -24,5 +24,9 @@
       "title": "Apache 2.0 License",
       "path": "licenses/Apache2.0.txt"
     }
+  },
+  "DEFAULT_LICENSE": {
+    "title": "Proprietary License",
+    "path": "licenses/Proprietary.txt"
   }
 }
