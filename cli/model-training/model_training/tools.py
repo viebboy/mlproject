@@ -256,7 +256,7 @@ def load_config(file: str, index: str, test_mode: bool) -> tuple[dict, str, str]
 
     config = get_config(config_module, index)
     config_name = config_module.NAME
-    config_description = config_module.DESCRIPTION
+    config_description = config_module.DESC
     config["test_mode"] = test_mode
     config["config_name"] = config_name
     config["config_description"] = config_description
