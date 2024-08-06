@@ -46,7 +46,7 @@ def main(
         os.environ["MLPROJECT_MAIN_PROCESS"] = "True"
 
     # assign trial index
-    config["nb_consumer"] = nb_consumer
+    config["dataloader"]["nb_consumer"] = nb_consumer
 
     # prepare directories
     prepare_directories(config)
