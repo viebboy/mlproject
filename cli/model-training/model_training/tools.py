@@ -181,7 +181,6 @@ def get_trainer(config: dict, accelerator: str):
         use_progress_bar=config["use_progress_bar"],
         test_mode=config["test_mode"],
         retain_metric_objects=config["retain_metric_objects"],
-        load_best=config["load_best"],
     )
 
     return trainer
