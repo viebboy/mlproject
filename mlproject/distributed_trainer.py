@@ -473,6 +473,10 @@ class Trainer:
 
         # save onnx checkpoint, only rank 0 does this
         if self.FABRIC.is_global_zero:
+            if self.sample_input is None:
+                for inputs, labels in train_data["dataloader"]:
+                    self.sample_input = inputs.cpu()
+                    break
             self.export_to_onnx(model, self.sample_input, self.onnx_checkpoint_file)
         self.FABRIC.barrier()
 
