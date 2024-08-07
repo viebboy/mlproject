@@ -198,7 +198,7 @@ class Trainer:
             self.onnx_config = {
                 "dynamic_batch": False,
                 "do_constant_folding": True,
-                "opset_version": 22,
+                "opset_version": 19,
             }
         elif isinstance(onnx_config, dict):
             self.onnx_config = onnx_config
@@ -209,7 +209,7 @@ class Trainer:
                 self.onnx_config["do_constant_folding"] = True
 
             if "opset_version" not in self.onnx_config:
-                self.onnx_config["opset_version"] = 22
+                self.onnx_config["opset_version"] = 19
         else:
             raise RuntimeError(
                 "onnx_config must be a dictionary; received {}".format(onnx_config)
@@ -962,7 +962,7 @@ class Trainer:
             cpu_model,
             sample_input,
             onnx_path,
-            opset_version=22,
+            opset_version=19,
             export_params=True,
             do_constant_folding=True,
             input_names=input_names,

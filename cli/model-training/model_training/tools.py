@@ -148,7 +148,7 @@ class Trainer(BaseTrainer):
             cpu_model,
             sample_input,
             onnx_path,
-            opset_version=22,
+            opset_version=19,
             export_params=True,
             do_constant_folding=True,
             input_names=input_names,
