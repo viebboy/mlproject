@@ -97,17 +97,19 @@ class Trainer(BaseTrainer):
         else:
             module = model._forward_module.module
 
+        weight_path = onnx_path.replace(".onnx", ".pt")
+
         # then dump it temporarily to disk
-        torch.save(module.state_dict(), onnx_path.replace(".onnx", ".pt"))
+        torch.save(module.state_dict(), weight_path)
         # load again to get a cpu instance
         # we need to avoid exporting the current training instance
         # because it messes up with the training loop and simply
         # makes distributed training stalled
-        weights = torch.load(onnx_path, map_location=torch.device("cpu"))
+        weights = torch.load(weight_path, map_location=torch.device("cpu"))
         cpu_model = self.model_constructor(**self.model_arguments)
         cpu_model.load_state_dict(weights)
         cpu_model.eval()
-        os.remove(onnx_path.replace(".onnx", ".pt"))
+        os.remove(weight_path)
 
         # now both sample input and cpu model are on cpu, simply export
         if isinstance(sample_input, (list, tuple)):
