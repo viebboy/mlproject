@@ -320,6 +320,32 @@ class Trainer(BaseTrainer):
         del weights
 
 
+def get_dataset(config: dict, set_name: str):
+    constructor_name = f"get_{set_name}_set"
+    # try to load, if missing then simply return None
+    try:
+        load_module(config["dataset"]["implementation"], constructor_name)
+    except ImportError:
+        # if train set, then throw
+        if set_name == "train":
+            msg = f"Cannot find get_train_set() method in {config['dataset']['implementation']}"
+            raise ImportError(msg)
+        else:
+            print(
+                f"WARNING: Cannot find get_{set_name}_set() method in {config['dataset']['implementation']}. "
+                "Ignoring this data"
+            )
+            return None
+
+    dataset_kwargs = {
+        "path": config["dataset"]["implementation"],
+        "name": constructor_name,
+        "arguments": config["dataset"][f"{set_name}_arguments"],
+    }
+
+    return Dataset(**dataset_kwargs)
+
+
 def get_data_loader(config: dict, set_name: str):
     constructor_name = f"get_{set_name}_set"
     # try to load, if missing then simply return None
