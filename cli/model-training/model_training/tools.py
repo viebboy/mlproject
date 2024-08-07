@@ -21,6 +21,7 @@ from __future__ import annotations
 import os
 import shutil
 import dill
+import time
 from torch.utils.data import Dataset as TorchDataset
 from mlproject.config import create_all_config as _create_all_config
 from mlproject.config import get_config_string
@@ -28,6 +29,7 @@ from mlproject.distributed_trainer import (
     get_cosine_lr_scheduler,
     get_multiplicative_lr_scheduler,
     Trainer as BaseTrainer,
+    Logger,
 )
 from model_training.template.config import ALL_CONFIGS as TEMPLATE_CONFIG
 from swift_loader import SwiftLoader
@@ -84,6 +86,160 @@ class Dataset(TorchDataset):
 
 
 class Trainer(BaseTrainer):
+    def fit(
+        self,
+        model: torch.nn.Module,
+        train_data: dict,
+        val_data: dict = None,
+        test_data: dict = None,
+        tensorboard_logger=None,
+        logger_prefix="",
+        load_best: bool = True,
+    ):
+        if self.FABRIC is None:
+            raise RuntimeError(
+                (
+                    f"{self.__class__}.setup() must be called before fit(). "
+                    "Ideally before any dataset or dataloader creation"
+                )
+            )
+        self.verify_data(train_data)
+        self.verify_data(val_data)
+        self.verify_data(test_data)
+
+        self.prepare_data(train_data, val_data, test_data)
+
+        if self.test_mode:
+            self.total_minibatch = min(
+                self.n_test_minibatch, len(train_data["dataloader"])
+            )
+        else:
+            self.total_minibatch = len(train_data["dataloader"])
+
+        self.total_train_minibatch = self.n_epoch * self.total_minibatch
+
+        # look for final checkpoint
+        if self.has_final_artifacts():
+            if self.FABRIC.is_global_zero:
+                print(
+                    f"Final artifacts exist under {self.output_dir}. "
+                    "No training was done. "
+                    "If you want to retrain model, please remove artifacts"
+                )
+
+            # load performance
+            with open(self.final_performance_file, "rb") as fid:
+                performance = dill.load(fid)
+
+            return performance
+
+        self.prepare_checkpoint_dir()
+
+        model.float()
+        optimizer = self.get_optimizer(model)
+
+        # note that load_from_checkpoint assume model is in CPU
+        # model should be moved to GPU only after this
+        self.load_from_checkpoint(model, optimizer)
+
+        # prepare model and optimizer for distributed training
+        # here model is moved to correct device, optimizer params are also moved correctly
+        model, optimizer = self.prepare_model(model, optimizer)
+
+        self.start_time = time.time()
+        self.start_minibatch_idx = self.cur_minibatch
+
+        while self.epoch_idx < self.n_epoch:
+            # optimize one epoch
+            self.update_lr(optimizer)
+            self.update_loop(model, train_data, optimizer)
+            self.epoch_idx += 1
+
+            if (self.epoch_idx % self.eval_freq) == 0:
+                train_performance = self.eval(model, train_data, "train set")
+                val_performance = self.eval(model, val_data, "val set")
+                test_performance = self.eval(model, test_data, "test set")
+                self.update_metrics(
+                    train_performance, val_performance, test_performance
+                )
+
+                self.print_metrics(train_performance, "train")
+                self.print_metrics(val_performance, "val")
+                self.print_metrics(test_performance, "test")
+
+                # if checkpoint frequency is None, then save checkpoint after
+                # evaluation
+                if self.checkpoint_freq is None:
+                    self.update_checkpoint(model, optimizer, False)
+                    # remember to to convert model to train stage
+                    model.train()
+
+        # load the best model based on validation performance if exist, or train performance
+        if load_best:
+            self.load_best(model)
+
+        # eval this best model
+        self.logger.info("evaluating performance of the final model...")
+        final_train_metrics = self.eval(model, train_data, "train set")
+        final_val_metrics = self.eval(model, val_data, "val set")
+        final_test_metrics = self.eval(model, test_data, "test set")
+
+        self.print_metrics(final_train_metrics, "final_train")
+        self.print_metrics(final_val_metrics, "final_val")
+        self.print_metrics(final_test_metrics, "final_test")
+
+        # clean up temp dir
+        if self.checkpoint_dir_obj is not None:
+            self.checkpoint_dir_obj.cleanup()
+
+        performance_curves = {}
+        for key, value_list in self.history.items():
+            if isinstance(value_list[0], (int, float)):
+                performance_curves[key] = value_list
+            else:
+                performance_curves[key] = [
+                    metric_object.value() for metric_object in value_list
+                ]
+
+        # close the file handle of loss curve
+        self.loss_curve.close()
+        self.visualize_performance(performance_curves)
+
+        performance = {
+            "history": self.history,
+            "train": final_train_metrics,
+            "val": final_val_metrics,
+            "test": final_test_metrics,
+        }
+
+        # save performance
+        with open(self.final_performance_file, "wb") as fid:
+            dill.dump(performance, fid, recurse=True)
+
+        # get the original module
+        if self.FABRIC.world_size == 1:
+            module = model._forward_module
+        else:
+            module = model._forward_module.module
+
+        # save torch checkpoint
+        if self.FABRIC.is_global_zero:
+            torch.save(module.state_dict(), self.final_checkpoint_file)
+            self.logger.info(
+                f"save final model state dict in {self.final_checkpoint_file}"
+            )
+        self.FABRIC.barrier()
+
+        # save onnx checkpoint, only rank 0 does this
+        if self.FABRIC.is_global_zero:
+            self.export_to_onnx(model, self.sample_input, self.onnx_checkpoint_file)
+        self.FABRIC.barrier()
+
+        if isinstance(self.logger, Logger):
+            self.logger.close()
+
+        return performance
+
     # need to overwrite onnx export because of dynamic model import
     def export_to_onnx(self, model, sample_input, onnx_path):
         if sample_input is None:
