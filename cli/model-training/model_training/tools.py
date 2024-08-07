@@ -27,7 +27,7 @@ from mlproject.config import get_config_string
 from mlproject.distributed_trainer import (
     get_cosine_lr_scheduler,
     get_multiplicative_lr_scheduler,
-    Trainer,
+    Trainer as BaseTrainer,
 )
 from model_training.template.config import ALL_CONFIGS as TEMPLATE_CONFIG
 from swift_loader import SwiftLoader
@@ -37,6 +37,7 @@ import random
 import string
 import sys
 import traceback
+import torch
 
 
 def load_module(module_file, attribute, module_name=None):
@@ -80,6 +81,81 @@ class Dataset(TorchDataset):
 
     def __getitem__(self, idx: int):
         return self._data[idx]
+
+
+class Trainer(BaseTrainer):
+    # need to overwrite onnx export because of dynamic model import
+    def export_to_onnx(self, model, sample_input, onnx_path):
+        if sample_input is None:
+            raise RuntimeError(
+                "sample_input is None; exporting a model to ONNX requires sample input"
+            )
+
+        # get the original module
+        if self.FABRIC.world_size == 1:
+            module = model._forward_module
+        else:
+            module = model._forward_module.module
+
+        # then dump it temporarily to disk
+        torch.save(module.state_dict(), onnx_path.replace(".onnx", ".pt"))
+        # load again to get a cpu instance
+        # we need to avoid exporting the current training instance
+        # because it messes up with the training loop and simply
+        # makes distributed training stalled
+        weights = torch.load(onnx_path, map_location=torch.device("cpu"))
+        cpu_model = self.model_constructor(**self.model_arguments)
+        cpu_model.load_state_dict(weights)
+        cpu_model.eval()
+        os.remove(onnx_path.replace(".onnx", ".pt"))
+
+        # now both sample input and cpu model are on cpu, simply export
+        if isinstance(sample_input, (list, tuple)):
+            # input is a list of tensors
+            input_names = ["input_{}".format(idx) for idx in range(len(sample_input))]
+        elif isinstance(sample_input, torch.Tensor):
+            input_names = ["input"]
+        else:
+            raise RuntimeError(
+                "Invalid model for export. A valid model must accept "
+                "a tensor or a list of tensor as inputs"
+            )
+
+        with torch.no_grad():
+            outputs = cpu_model(sample_input)
+            if isinstance(outputs, (list, tuple)):
+                for item in outputs:
+                    if not isinstance(item, torch.Tensor):
+                        raise RuntimeError(
+                            "Cannot export model that returns a list of non-tensor"
+                        )
+                output_names = ["output_{}".format(idx) for idx in range(len(outputs))]
+            elif isinstance(outputs, torch.Tensor):
+                output_names = ["output"]
+            elif isinstance(outputs, dict):
+                raise RuntimeError(
+                    "Cannot export model that returns a dictionary as outputs"
+                )
+
+        dynamic_axes = {}
+        if self.onnx_config["dynamic_batch"]:
+            for name in input_names + output_names:
+                dynamic_axes[name] = {0: "batch_size"}
+
+        torch.onnx.export(
+            cpu_model,
+            sample_input,
+            onnx_path,
+            opset_version=22,
+            export_params=True,
+            do_constant_folding=True,
+            input_names=input_names,
+            output_names=output_names,
+            dynamic_axes=dynamic_axes,
+        )
+        self.logger.info(f"save model in ONNX format in {onnx_path}")
+        del cpu_model
+        del weights
 
 
 def get_data_loader(config: dict, set_name: str):
@@ -182,6 +258,11 @@ def get_trainer(config: dict, accelerator: str):
         test_mode=config["test_mode"],
         retain_metric_objects=config["retain_metric_objects"],
     )
+
+    trainer.model_constructor = load_module(
+        config["model"]["implementation"], "get_model"
+    )
+    trainer.model_arguments = config["model"]["arguments"]
 
     return trainer
 
