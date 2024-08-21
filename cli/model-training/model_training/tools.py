@@ -308,7 +308,7 @@ class Trainer(BaseTrainer):
             cpu_model,
             sample_input,
             onnx_path,
-            opset_version=19,
+            opset_version=self.opset,
             export_params=True,
             do_constant_folding=True,
             input_names=input_names,
@@ -451,6 +451,7 @@ def get_trainer(config: dict, accelerator: str):
         config["model"]["implementation"], "get_model"
     )
     trainer.model_arguments = config["model"]["arguments"]
+    trainer.opset = config.get("onnx_opset", 11)
 
     return trainer
 
