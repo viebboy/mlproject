@@ -236,6 +236,7 @@ class Accuracy(Metric):
         self._n_sample += predictions.size(0)
 
     def update(self, predictions, labels):
+        labels = labels.flatten()
         self.update_function(predictions, labels)
 
     def value(self):
@@ -321,6 +322,7 @@ class Precision(Metric):
                 self._stat[i]["false_neg"] += other._stat[i]["false_neg"]
 
     def update(self, predictions, labels):
+        labels = labels.flatten()
         self.update_function(predictions, labels)
 
     def update_multiclass(self, predictions, labels):
@@ -564,7 +566,9 @@ class CrossEntropy(Metric):
             labels = labels.squeeze(0)
 
         n_sample = labels.shape[self._batch_axis]
-        self._total_value += _CrossEntropyLoss(predictions, labels.flatten()).item() * n_sample
+        self._total_value += (
+            _CrossEntropyLoss(predictions, labels.flatten()).item() * n_sample
+        )
         self._n_sample += n_sample
 
     def value(self):
