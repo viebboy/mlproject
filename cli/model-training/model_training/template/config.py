@@ -3,8 +3,8 @@ config.py: a set of experiment configurations
 ---------------------------------------------
 
 
-* Copyright: #TODO
-* Authors: #TODO
+* Copyright: Dat Tran (viebboy@gmail.com)
+* Authors: Dat Tran
 * Date: #TODO
 * Version: 0.0.1
 
@@ -12,7 +12,7 @@ This is part of the #TODO project
 
 License
 -------
-#TODO
+Proprietary License
 
 """
 
@@ -32,7 +32,7 @@ LOSS = {
     # path to .py implementation
     # it should contain get_loss_function(**arguments) method that returns a callable
     # the returned callable should have signature: loss(predictions, labels) using torch
-    "implementation": "fill_path_to_implementation",
+    "implementation": os.path.join(CURRENT_DIR, "loss.py"),
     # arguments should always be a dict, can be empty
     "arguments": {},
 }
@@ -44,13 +44,13 @@ METRIC = {
     # - metrics (list): a list of mlproject.metrics.Metric objects
     # - monitor_metric (str): name of the metric that is used to monitor best weights
     # - monitor_direction (str): can be `higher` or `lower`, indicating the direction of the monitor_metric
-    "implementation": "fill_path_to_implementation",
+    "implementation": os.path.join(CURRENT_DIR, "metric.py"),
     # arguments should always be a dict, can be empty
     "arguments": {},
 }
 
 DATASET = {
-    "implementation": "fill_path_to_implementation",
+    "implementation": os.path.join(CURRENT_DIR, "dataset.py"),
     "train_arguments": {},
     "val_arguments": {},
     "test_arguments": {},
@@ -68,7 +68,7 @@ DATA_LOADER = {
 }
 
 MODEL = {
-    "implementation": "fill_path_to_implementation",
+    "implementation": os.path.join(CURRENT_DIR, "model.py"),
     "arguments": {},
 }
 

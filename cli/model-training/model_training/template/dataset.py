@@ -3,8 +3,8 @@ dataset.py: dataset implementation
 ----------------------------------
 
 
-* Copyright: #TODO
-* Authors: #TODO
+* Copyright: Dat Tran (viebboy@gmail.com)
+* Authors: Dat Tran
 * Date: #TODO
 * Version: 0.0.1
 
@@ -12,7 +12,7 @@ This is part of the #TODO project
 
 License
 -------
-#TODO
+Proprietary License
 
 """
 
