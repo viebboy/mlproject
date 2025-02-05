@@ -5,5 +5,8 @@ pip install -r ${ROOT_DIR}/requirements.txt
 pip install -e ${ROOT_DIR}/
 
 # install model-training cli
+pip install -r https://raw.githubusercontent.com/viebboy/swift-loader/main/requirements.txt
+pip install git+https://github.com/viebboy/swift-loader.git
+
 pip install -r $ROOT_DIR/cli/model-training/requirements.txt
 pip install -e $ROOT_DIR/cli/model-training/
