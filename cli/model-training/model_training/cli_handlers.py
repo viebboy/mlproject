@@ -87,7 +87,7 @@ def train_handler(args: argparse.Namespace) -> None:
             ]
             if args.test_mode:
                 cmd.append("--test-mode")
-            result = subprocess.run(cmd, capture_output=True)
+            status = os.system(" ".join(cmd))
             # check if the command failed
-            if result.returncode != 0:
+            if status != 0:
                 raise RuntimeError(f"Failed to run with index {index}")
