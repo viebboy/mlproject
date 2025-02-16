@@ -149,6 +149,10 @@ class Trainer(BaseTrainer):
         self.start_time = time.time()
         self.start_minibatch_idx = self.cur_minibatch
 
+        # check if loss_function has to_device attribute, then call with correct device
+        if hasattr(self.loss_function, "to_device"):
+            self.loss_function.to_device(self.FABRIC.device)
+
         while self.epoch_idx < self.n_epoch:
             # optimize one epoch
             self.update_lr(optimizer)
