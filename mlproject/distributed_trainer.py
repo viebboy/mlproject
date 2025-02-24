@@ -392,9 +392,9 @@ class Trainer:
         self.start_time = time.time()
         self.start_minibatch_idx = self.cur_minibatch
 
-        # check if loss_function has to_device attribute, then call with correct device
-        if hasattr(self.loss_function, "to_device"):
-            self.loss_function.to_device(self.FABRIC.device)
+        # if loss function is a torch module, move to correct device
+        if isinstance(self.loss_function, torch.nn.Module):
+            self.loss_function.to(self.FABRIC.device)
 
         while self.epoch_idx < self.n_epoch:
             # optimize one epoch
