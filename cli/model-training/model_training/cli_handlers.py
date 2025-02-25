@@ -27,21 +27,42 @@ from model_training.train_entry import main as train_entry_main
 from model_training.tools import load_config, get_config_size
 
 
-def write_template_handler(args: argparse.Namespace) -> None:
+def write_classification_template_handler(args: argparse.Namespace) -> None:
     os.makedirs(args.path, exist_ok=True)
     current_dir = os.path.dirname(os.path.realpath(__file__))
-    template_dir = os.path.join(current_dir, "template")
+    template_dir = os.path.join(current_dir, "template", "classification")
     config_file = os.path.join(template_dir, "config.py")
     dataset_file = os.path.join(template_dir, "dataset.py")
     loss_file = os.path.join(template_dir, "loss.py")
     metric_file = os.path.join(template_dir, "metric.py")
     model_file = os.path.join(template_dir, "model.py")
+    gitignore_file = os.path.join(template_dir, "gitignore.txt")
 
     shutil.copy(config_file, os.path.join(args.path, "config.py"))
     shutil.copy(dataset_file, os.path.join(args.path, "dataset.py"))
     shutil.copy(loss_file, os.path.join(args.path, "loss.py"))
     shutil.copy(metric_file, os.path.join(args.path, "metric.py"))
     shutil.copy(model_file, os.path.join(args.path, "model.py"))
+    shutil.copy(gitignore_file, os.path.join(args.path, ".gitignore"))
+
+
+def write_regression_template_handler(args: argparse.Namespace) -> None:
+    os.makedirs(args.path, exist_ok=True)
+    current_dir = os.path.dirname(os.path.realpath(__file__))
+    template_dir = os.path.join(current_dir, "template", "regression")
+    config_file = os.path.join(template_dir, "config.py")
+    dataset_file = os.path.join(template_dir, "dataset.py")
+    loss_file = os.path.join(template_dir, "loss.py")
+    metric_file = os.path.join(template_dir, "metric.py")
+    model_file = os.path.join(template_dir, "model.py")
+    gitignore_file = os.path.join(template_dir, "gitignore.txt")
+
+    shutil.copy(config_file, os.path.join(args.path, "config.py"))
+    shutil.copy(dataset_file, os.path.join(args.path, "dataset.py"))
+    shutil.copy(loss_file, os.path.join(args.path, "loss.py"))
+    shutil.copy(metric_file, os.path.join(args.path, "metric.py"))
+    shutil.copy(model_file, os.path.join(args.path, "model.py"))
+    shutil.copy(gitignore_file, os.path.join(args.path, ".gitignore"))
 
 
 def train_single_config_handler(args: argparse.Namespace) -> None:

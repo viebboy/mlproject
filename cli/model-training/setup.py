@@ -12,6 +12,7 @@ setuptools.setup(
     long_description_content_type="text",
     packages=setuptools.find_packages(),
     include_package_data=True,
+    package_data={"model_training": ["template/*/*/*"]},
     classifiers=[
         "Operating System :: POSIX",
     ],

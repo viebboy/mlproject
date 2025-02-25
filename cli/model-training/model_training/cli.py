@@ -20,11 +20,16 @@ Proprietary License
 
 from __future__ import annotations
 import argparse
-from model_training.cli_handlers import write_template_handler, train_handler
+from model_training.cli_handlers import (
+    write_classification_template_handler,
+    write_regression_template_handler,
+    train_handler,
+)
 
 
 COMMAND_TO_HANDLER = {
-    "generate-template": write_template_handler,
+    "generate-classification-template": write_classification_template_handler,
+    "generate-regression-template": write_regression_template_handler,
     "train": train_handler,
 }
 
@@ -39,7 +44,8 @@ def parse_args():
         help="Sub-commands to run with ml",
     )
 
-    add_write_template_parser(subparsers)
+    add_write_classification_template_parser(subparsers)
+    add_write_regression_template_parser(subparsers)
     add_train_parser(subparsers)
 
     # Parse the arguments
@@ -47,8 +53,24 @@ def parse_args():
     return args
 
 
-def add_write_template_parser(subparsers):
-    parser = subparsers.add_parser("generate-template", help="generate template files")
+def add_write_classification_template_parser(subparsers):
+    parser = subparsers.add_parser(
+        "generate-classification-template",
+        help="generate classification template files",
+    )
+    parser.add_argument(
+        "--path",
+        type=str,
+        required=True,
+        help="path to directory to write",
+    )
+
+
+def add_write_regression_template_parser(subparsers):
+    parser = subparsers.add_parser(
+        "generate-regression-template",
+        help="generate regression template files",
+    )
     parser.add_argument(
         "--path",
         type=str,
