@@ -303,15 +303,18 @@ class Trainer(BaseTrainer):
                     "Cannot export model that returns a dictionary as outputs"
                 )
 
+        # export with dynamic batch size
         dynamic_axes = {}
-        if self.onnx_config["dynamic_batch"]:
-            for name in input_names + output_names:
-                dynamic_axes[name] = {0: "batch_size"}
+        for name in input_names + output_names:
+            dynamic_axes[name] = {0: "batch_size"}
+
+        dynamic_onnx_path = onnx_path.replace(".onnx", "_bs=dynamic.onnx")
+        fixed_onnx_path = onnx_path.replace(".onnx", "_bs=1.onnx")
 
         torch.onnx.export(
             cpu_model,
             sample_input,
-            onnx_path,
+            dynamic_onnx_path,
             opset_version=self.opset,
             export_params=True,
             do_constant_folding=True,
@@ -319,7 +322,26 @@ class Trainer(BaseTrainer):
             output_names=output_names,
             dynamic_axes=dynamic_axes,
         )
-        self.logger.info(f"save model in ONNX format in {onnx_path}")
+        self.logger.info(
+            f"save model with dynamic batch size in ONNX format in {dynamic_onnx_path}"
+        )
+
+        # export with batch size = 1
+        sample_input = sample_input[0:1]
+        torch.onnx.export(
+            cpu_model,
+            sample_input,
+            fixed_onnx_path,
+            opset_version=self.opset,
+            export_params=True,
+            do_constant_folding=True,
+            input_names=input_names,
+            output_names=output_names,
+            dynamic_axes={},
+        )
+        self.logger.info(
+            f"save model with batch size = 1 in ONNX format in {fixed_onnx_path}"
+        )
         del cpu_model
         del weights
 
