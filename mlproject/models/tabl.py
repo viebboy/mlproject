@@ -24,7 +24,7 @@ import torch.nn.functional as F
 
 
 def nmodeproduct(x, W, mode):
-    assert mode in [1, 2], 'only support mode 1, 2'
+    assert mode in [1, 2], "only support mode 1, 2"
     if mode == 1:
         y = torch.transpose(x, 1, 2)
         y = F.linear(y, W)
@@ -45,15 +45,18 @@ class BilinearLayer(nn.Module):
         self.in1, self.in2 = input_shape
         self.out1, self.out2 = output_shape
 
-        self.W1 = nn.Parameter(data=torch.Tensor(self.out1, self.in1),
-                               requires_grad=True)
+        self.W1 = nn.Parameter(
+            data=torch.Tensor(self.out1, self.in1), requires_grad=True
+        )
 
-        self.W2 = nn.Parameter(data=torch.Tensor(self.out2, self.in2),
-                               requires_grad=True)
+        self.W2 = nn.Parameter(
+            data=torch.Tensor(self.out2, self.in2), requires_grad=True
+        )
 
         if use_bias:
-            self.bias = nn.Parameter(data=torch.Tensor(1, self.out1, self.out2),
-                                     requires_grad=True)
+            self.bias = nn.Parameter(
+                data=torch.Tensor(1, self.out1, self.out2), requires_grad=True
+            )
         else:
             self.bias = None
 
@@ -91,7 +94,9 @@ class BilinearModel(nn.Module):
 
         self.all_layers = nn.ModuleList()
         for idx, hidden_shape in enumerate(hidden_shapes):
-            self.all_layers.append(BilinearLayer(input_shape, hidden_shape, use_bias=use_bias))
+            self.all_layers.append(
+                BilinearLayer(input_shape, hidden_shape, use_bias=use_bias)
+            )
             if idx < len(hidden_shapes) - 1 and activation is not None:
                 self.all_layers.append(activation)
             input_shape = hidden_shape
@@ -113,7 +118,6 @@ class BiN(nn.Module):
         input_shape,
         epsilon=1e-4,
     ):
-
         super(BiN, self).__init__()
 
         self.dim1, self.dim2 = input_shape
@@ -140,12 +144,16 @@ class BiN(nn.Module):
         )
 
         self.lambda1 = nn.Parameter(
-            data=torch.Tensor(1,),
+            data=torch.Tensor(
+                1,
+            ),
             requires_grad=True,
         )
 
         self.lambda2 = nn.Parameter(
-            data=torch.Tensor(1,),
+            data=torch.Tensor(
+                1,
+            ),
             requires_grad=True,
         )
 
@@ -211,14 +219,16 @@ class TABLLayer(nn.Module):
             self.W = nn.Parameter(data=torch.Tensor(self.in1, self.in1))  # D x D.
             self.attention_dim = self.in1
 
-        self.register_buffer('I', torch.tensor(np.eye(self.attention_dim)))
+        self.register_buffer("I", torch.tensor(np.eye(self.attention_dim)))
 
         self.W2 = nn.Parameter(
             data=torch.Tensor(self.out2, self.in2), requires_grad=True
         )  # T' x T.
 
         self.alpha = nn.Parameter(
-            data=torch.Tensor(1,),
+            data=torch.Tensor(
+                1,
+            ),
             requires_grad=True,
         )
 
@@ -245,7 +255,7 @@ class TABLLayer(nn.Module):
             A = F.softmax(E, dim=-1)
             alpha = torch.clamp(self.alpha, min=0.0, max=1.0)
             x_tilde = alpha * (x_bar * A) + (1 - alpha) * x_bar
-            y = nmodeproduct(x_bar, self.W2, 2)
+            y = nmodeproduct(x_tilde, self.W2, 2)
             if self.bias is not None:
                 y = y + self.bias
         else:
@@ -255,7 +265,7 @@ class TABLLayer(nn.Module):
             A = F.softmax(E, dim=1)
             alpha = torch.clamp(self.alpha, min=0.0, max=1.0)
             x_tilde = alpha * (x_bar * A) + (1 - alpha) * x_bar
-            y = nmodeproduct(x_bar, self.W1, 1)
+            y = nmodeproduct(x_tilde, self.W1, 1)
             if self.bias is not None:
                 y = y + self.bias
 
@@ -266,6 +276,7 @@ class TABLModel(nn.Module):
     """
     TABL Model: all layers are BilinearLayer, except the last layer, which is TABLLayer
     """
+
     def __init__(
         self,
         input_shape,
@@ -283,7 +294,9 @@ class TABLModel(nn.Module):
                 self.all_layers.append(activation)
             input_shape = hidden_shape
 
-        self.all_layers.append(TABLLayer(input_shape, hidden_shapes[-1], attention_axis, use_bias))
+        self.all_layers.append(
+            TABLLayer(input_shape, hidden_shapes[-1], attention_axis, use_bias)
+        )
 
     def forward(self, x):
         for layer in self.all_layers:
