@@ -288,14 +288,28 @@ class Precision(Metric):
         self._confidence_threshold = confidence_threshold
 
     def dump(self) -> dict:
-        data = {
-            "n_sample": self._n_sample,
-            "n_class": self._n_class,
-            "class_index": self._class_index,
-            "confidence_threshold": self._confidence_threshold,
-            "stat": self._stat,
-            "is_binary": self._is_binary,
-        }
+        if self._is_binary:
+            data = {
+                "n_sample": self._n_sample,
+                "n_class": self._n_class,
+                "class_index": self._class_index,
+                "confidence_threshold": self._confidence_threshold,
+                "stat": self._stat,
+                "is_binary": self._is_binary,
+            }
+        else:
+            data = {
+                "n_sample": self._n_sample,
+                "n_class": self._n_class,
+                "is_binary": self._is_binary,
+                "class_index": self._class_index,
+                "confidence_threshold": self._confidence_threshold,
+            }
+            # stat needs to be flattened
+            for class_index in range(self._n_class):
+                data[f"true_pos_{class_index}"] = self._stat[class_index]["true_pos"]
+                data[f"false_pos_{class_index}"] = self._stat[class_index]["false_pos"]
+                data[f"false_neg_{class_index}"] = self._stat[class_index]["false_neg"]
         return data
 
     def load(self, state: dict) -> None:
@@ -303,8 +317,17 @@ class Precision(Metric):
         self._n_class = state["n_class"]
         self._class_index = state["class_index"]
         self._confidence_threshold = state["confidence_threshold"]
-        self._stat = state["stat"]
         self._is_binary = state["is_binary"]
+        if self._is_binary:
+            self._stat = state["stat"]
+        else:
+            self._stat = {}
+            for class_index in range(self._n_class):
+                self._stat[class_index] = {
+                    "true_pos": state[f"true_pos_{class_index}"],
+                    "false_pos": state[f"false_pos_{class_index}"],
+                    "false_neg": state[f"false_neg_{class_index}"],
+                }
 
     def merge(self, *others):
         for other in others:
