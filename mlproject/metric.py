@@ -310,11 +310,24 @@ class Precision(Metric):
         for other in others:
             self._n_sample += other._n_sample
             if not self._is_binary:
+                # check if self._stat is empty, create placeholder
+                if len(self._stat) == 0:
+                    self._stat = {
+                        i: {"true_pos": 0, "false_pos": 0, "false_neg": 0}
+                        for i in range(other._n_class)
+                    }
                 for i in range(self._n_class):
                     self._stat[i]["true_pos"] += other._stat[i]["true_pos"]
                     self._stat[i]["false_pos"] += other._stat[i]["false_pos"]
                     self._stat[i]["false_neg"] += other._stat[i]["false_neg"]
             else:
+                # check if keys are in self._stat
+                if "true_pos" not in self._stat:
+                    self._stat["true_pos"] = 0
+                if "false_pos" not in self._stat:
+                    self._stat["false_pos"] = 0
+                if "false_neg" not in self._stat:
+                    self._stat["false_neg"] = 0
                 self._stat["true_pos"] += other._stat["true_pos"]
                 self._stat["false_pos"] += other._stat["false_pos"]
                 self._stat["false_neg"] += other._stat["false_neg"]
