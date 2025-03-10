@@ -561,6 +561,8 @@ class Trainer:
     def get_metric_value(self, metric):
         if isinstance(metric, (int, float)):
             return metric
+        elif isinstance(metric, torch.Tensor):
+            return metric.item()
         elif hasattr(metric, "value") and callable(metric.value):
             return metric.value()
         else:
