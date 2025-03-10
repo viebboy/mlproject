@@ -275,9 +275,11 @@ class Precision(Metric):
             logger.warning("".join(msg))
             self.update_function = self.update_binary
             self.value_function = self.value_binary
+            self._is_binary = True
         else:
             self.update_function = self.update_multiclass
             self.value_function = self.value_multiclass
+            self._is_binary = False
 
         self._stat = {}
         self._n_class = 0
@@ -291,13 +293,9 @@ class Precision(Metric):
             "n_class": self._n_class,
             "class_index": self._class_index,
             "confidence_threshold": self._confidence_threshold,
+            "stat": self._stat,
+            "is_binary": self._is_binary,
         }
-
-        for i in range(self._n_class):
-            for key in self._stat[i].keys():
-                data[f"true_pos_{i}"] = self._stat[i]["true_pos"]
-                data[f"false_pos_{i}"] = self._stat[i]["false_pos"]
-                data[f"false_neg_{i}"] = self._stat[i]["false_neg"]
         return data
 
     def load(self, state: dict) -> None:
@@ -305,21 +303,21 @@ class Precision(Metric):
         self._n_class = state["n_class"]
         self._class_index = state["class_index"]
         self._confidence_threshold = state["confidence_threshold"]
-        self._stat = {}
-        for i in range(self._n_class):
-            self._stat[i] = {
-                "true_pos": state[f"true_pos_{i}"],
-                "false_pos": state[f"false_pos_{i}"],
-                "false_neg": state[f"false_neg_{i}"],
-            }
+        self._stat = state["stat"]
+        self._is_binary = state["is_binary"]
 
     def merge(self, *others):
         for other in others:
             self._n_sample += other._n_sample
-            for i in range(self._n_class):
-                self._stat[i]["true_pos"] += other._stat[i]["true_pos"]
-                self._stat[i]["false_pos"] += other._stat[i]["false_pos"]
-                self._stat[i]["false_neg"] += other._stat[i]["false_neg"]
+            if not self._is_binary:
+                for i in range(self._n_class):
+                    self._stat[i]["true_pos"] += other._stat[i]["true_pos"]
+                    self._stat[i]["false_pos"] += other._stat[i]["false_pos"]
+                    self._stat[i]["false_neg"] += other._stat[i]["false_neg"]
+            else:
+                self._stat["true_pos"] += other._stat["true_pos"]
+                self._stat["false_pos"] += other._stat["false_pos"]
+                self._stat["false_neg"] += other._stat["false_neg"]
 
     def update(self, predictions, labels):
         labels = labels.flatten()
