@@ -255,7 +255,13 @@ class Precision(Metric):
     Precision
     """
 
-    def __init__(self, name="precision", class_index=None, confidence_threshold=None):
+    def __init__(
+        self,
+        n_class: int,
+        name="precision",
+        class_index=None,
+        confidence_threshold=None,
+    ):
         super(Precision, self).__init__(name=name)
 
         if class_index is not None:
@@ -276,13 +282,20 @@ class Precision(Metric):
             self.update_function = self.update_binary
             self.value_function = self.value_binary
             self._is_binary = True
+            self._stat = {
+                i: {"true_pos": 0, "false_pos": 0, "false_neg": 0}
+                for i in range(n_class)
+            }
         else:
+            self._stat = {
+                i: {"true_pos": 0, "false_pos": 0, "false_neg": 0}
+                for i in range(n_class)
+            }
             self.update_function = self.update_multiclass
             self.value_function = self.value_multiclass
             self._is_binary = False
 
-        self._stat = {}
-        self._n_class = 0
+        self._n_class = n_class
         self._n_sample = 0
         self._class_index = class_index
         self._confidence_threshold = confidence_threshold
@@ -294,8 +307,10 @@ class Precision(Metric):
                 "n_class": self._n_class,
                 "class_index": self._class_index,
                 "confidence_threshold": self._confidence_threshold,
-                "stat": self._stat,
                 "is_binary": self._is_binary,
+                "true_pos": self._stat["true_pos"],
+                "false_pos": self._stat["false_pos"],
+                "false_neg": self._stat["false_neg"],
             }
         else:
             data = {
@@ -319,38 +334,30 @@ class Precision(Metric):
         self._confidence_threshold = state["confidence_threshold"]
         self._is_binary = state["is_binary"]
         if self._is_binary:
-            self._stat = state["stat"]
+            self._stat = {
+                "true_pos": state["true_pos"],
+                "false_pos": state["false_pos"],
+                "false_neg": state["false_neg"],
+            }
         else:
-            self._stat = {}
-            for class_index in range(self._n_class):
-                self._stat[class_index] = {
-                    "true_pos": state[f"true_pos_{class_index}"],
-                    "false_pos": state[f"false_pos_{class_index}"],
-                    "false_neg": state[f"false_neg_{class_index}"],
+            self._stat = {
+                i: {
+                    "true_pos": state[f"true_pos_{i}"],
+                    "false_pos": state[f"false_pos_{i}"],
+                    "false_neg": state[f"false_neg_{i}"],
                 }
+                for i in range(self._n_class)
+            }
 
     def merge(self, *others):
         for other in others:
             self._n_sample += other._n_sample
             if not self._is_binary:
-                # check if self._stat is empty, create placeholder
-                if len(self._stat) == 0:
-                    self._stat = {
-                        i: {"true_pos": 0, "false_pos": 0, "false_neg": 0}
-                        for i in range(other._n_class)
-                    }
                 for i in range(self._n_class):
                     self._stat[i]["true_pos"] += other._stat[i]["true_pos"]
                     self._stat[i]["false_pos"] += other._stat[i]["false_pos"]
                     self._stat[i]["false_neg"] += other._stat[i]["false_neg"]
             else:
-                # check if keys are in self._stat
-                if "true_pos" not in self._stat:
-                    self._stat["true_pos"] = 0
-                if "false_pos" not in self._stat:
-                    self._stat["false_pos"] = 0
-                if "false_neg" not in self._stat:
-                    self._stat["false_neg"] = 0
                 self._stat["true_pos"] += other._stat["true_pos"]
                 self._stat["false_pos"] += other._stat["false_pos"]
                 self._stat["false_neg"] += other._stat["false_neg"]
@@ -360,14 +367,6 @@ class Precision(Metric):
         self.update_function(predictions, labels)
 
     def update_multiclass(self, predictions, labels):
-        if self._n_class == 0:
-            # initialize for the 1st time calling update()
-            self._n_class = predictions.size(1)
-            self._stat = {
-                i: {"true_pos": 0, "false_pos": 0, "false_neg": 0}
-                for i in range(self._n_class)
-            }
-
         self._n_sample += predictions.size(0)
         predictions = predictions.argmax(dim=-1).cpu().detach().numpy()
         labels = labels.cpu().detach().numpy()
@@ -382,15 +381,6 @@ class Precision(Metric):
             self._stat[i]["false_neg"] += false_neg
 
     def update_binary(self, predictions, labels):
-        if self._n_class == 0:
-            # initialize for the 1st time calling update()
-            self._n_class = predictions.size(1)
-            if self._class_index >= self._n_class:
-                raise RuntimeError(
-                    "given class_index exceeds the number of class in predictions"
-                )
-            self._stat = {"true_pos": 0, "false_pos": 0, "false_neg": 0}
-
         self._n_sample += predictions.size(0)
         # handle predictions for binary case
         predictions = torch.softmax(predictions, -1)
@@ -446,8 +436,13 @@ class Precision(Metric):
         return self.value_function()
 
     def reset(self):
-        self._stat = {}
-        self._n_class = 0
+        if self._is_binary:
+            self._stat = {"true_pos": 0, "false_pos": 0, "false_neg": 0}
+        else:
+            self._stat = {
+                i: {"true_pos": 0, "false_pos": 0, "false_neg": 0}
+                for i in range(self._n_class)
+            }
         self._n_sample = 0
 
 
@@ -456,8 +451,15 @@ class Recall(Precision):
     Recall
     """
 
-    def __init__(self, name="recall", class_index=None, confidence_threshold=None):
+    def __init__(
+        self,
+        n_class: int,
+        name="recall",
+        class_index=None,
+        confidence_threshold=None,
+    ):
         super(Recall, self).__init__(
+            n_class=n_class,
             name=name,
             class_index=class_index,
             confidence_threshold=confidence_threshold,
@@ -496,8 +498,15 @@ class F1(Precision):
     F1 metric
     """
 
-    def __init__(self, name="f1", class_index=None, confidence_threshold=None):
+    def __init__(
+        self,
+        n_class: int,
+        name="f1",
+        class_index=None,
+        confidence_threshold=None,
+    ):
         super(F1, self).__init__(
+            n_class=n_class,
             name=name,
             class_index=class_index,
             confidence_threshold=confidence_threshold,
