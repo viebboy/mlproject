@@ -417,7 +417,7 @@ class Trainer:
                 # if checkpoint frequency is None, then save checkpoint after
                 # evaluation
                 if self.checkpoint_freq is None:
-                    self.update_checkpoint(model, optimizer, False)
+                    self.update_checkpoint(model, optimizer, True)
                     # remember to to convert model to train stage
                     model.train()
 

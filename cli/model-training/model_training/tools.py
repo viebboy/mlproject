@@ -40,6 +40,7 @@ import string
 import sys
 import traceback
 import torch
+from glob import glob
 
 
 def load_module(module_file, attribute, module_name=None):
@@ -95,6 +96,7 @@ class Trainer(BaseTrainer):
         tensorboard_logger=None,
         logger_prefix="",
         load_best: bool = True,
+        checkpoint_callback: dict = None,
     ):
         if self.FABRIC is None:
             raise RuntimeError(
@@ -106,6 +108,10 @@ class Trainer(BaseTrainer):
         self.verify_data(train_data)
         self.verify_data(val_data)
         self.verify_data(test_data)
+
+        # construct the checkpoint callback if this process is rank 0
+        if checkpoint_callback is not None and self.FABRIC.is_global_zero:
+            checkpoint_callback = checkpoint_callback["constructor"](**checkpoint_callback["arguments"])
 
         self.prepare_data(train_data, val_data, test_data)
 
@@ -174,7 +180,7 @@ class Trainer(BaseTrainer):
                 # if checkpoint frequency is None, then save checkpoint after
                 # evaluation
                 if self.checkpoint_freq is None:
-                    self.update_checkpoint(model, optimizer, False)
+                    self.update_checkpoint(model, optimizer, True)
                     # remember to to convert model to train stage
                     model.train()
 
@@ -248,8 +254,88 @@ class Trainer(BaseTrainer):
 
         return performance
 
+    def update_checkpoint(self, model, optimizer, epoch_ended, checkpoint_callback):
+        # only save checkpoint if global rank is zero
+        if self.FABRIC.is_global_zero:
+            # put in eval mode
+            model.eval()
+
+            # checkpoint every K minibatch
+            checkpoint = {
+                "epoch_idx": self.epoch_idx,
+                "cur_minibatch": self.cur_minibatch,
+                "minibatch_idx": self.minibatch_idx,
+                "model_state_dict": model.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "epoch_ended": epoch_ended,
+            }
+            history = {"history": self.history, "history_indices": self.history_indices}
+
+            checkpoint_file = os.path.join(
+                self.checkpoint_dir,
+                "checkpoint_minibatch={:09d}_epoch={:09d}.pt".format(
+                    self.cur_minibatch, self.epoch_idx
+                ),
+            )
+
+            torch.save(checkpoint, checkpoint_file)
+
+            # need to separate history because it contains metric objects, which may require
+            # dill for serialization
+            history_file = os.path.join(
+                self.checkpoint_dir,
+                "history_minibatch={:09d}_epoch={:09d}.dill".format(
+                    self.cur_minibatch, self.epoch_idx
+                ),
+            )
+            with open(history_file, "wb") as fid:
+                dill.dump(history, fid, recurse=True)
+
+            self.logger.info(f"save checkpoint to {checkpoint_file}")
+            self.logger.info(f"save history to {history_file}")
+
+            checkpoint_files = glob(self.checkpoint_dir + "/checkpoint_*.pt")
+            checkpoint_files.sort()
+            history_files = glob(self.checkpoint_dir + "/history_*.dill")
+            history_files.sort()
+
+            no_checkpoint_files = len(checkpoint_files)
+
+            if self.max_checkpoint > 0 and no_checkpoint_files > self.max_checkpoint:
+                for idx in range(0, no_checkpoint_files - self.max_checkpoint):
+                    if os.path.isfile(checkpoint_files[idx]):
+                        os.remove(checkpoint_files[idx])
+                    elif os.path.isdir(checkpoint_files[idx]):
+                        shutil.rmtree(checkpoint_files[idx])
+
+                    if os.path.isfile(history_files[idx]):
+                        os.remove(history_files[idx])
+                    elif os.path.isdir(history_files[idx]):
+                        shutil.rmtree(history_files[idx])
+
+            # ----- handle onnx checkpoints --------------------------
+            onnx_file = os.path.join(
+                self.checkpoint_dir,
+                "model_minibatch={:09d}_epoch={:09d}.onnx".format(
+                    self.cur_minibatch, self.epoch_idx
+                ),
+            )
+            self.export_to_onnx(model, self.sample_input, onnx_file, checkpoint_callback)
+            onnx_files = glob(self.checkpoint_dir + "/model_*.onnx")
+            onnx_files.sort()
+            nb_onnx_file = len(onnx_files)
+            if self.max_checkpoint > 0 and nb_onnx_file > self.max_checkpoint:
+                for idx in range(0, nb_onnx_file - self.max_checkpoint):
+                    if os.path.isfile(onnx_files[idx]):
+                        os.remove(onnx_files[idx])
+                    elif os.path.isdir(onnx_files[idx]):
+                        shutil.rmtree(onnx_files[idx])
+
+        # barrier is called for every process
+        self.FABRIC.barrier()
+
     # need to overwrite onnx export because of dynamic model import
-    def export_to_onnx(self, model, sample_input, onnx_path):
+    def export_to_onnx(self, model, sample_input, onnx_path, checkpoint_callback):
         if sample_input is None:
             raise RuntimeError(
                 "sample_input is None; exporting a model to ONNX requires sample input"
@@ -345,6 +431,10 @@ class Trainer(BaseTrainer):
         del cpu_model
         del weights
 
+        if checkpoint_callback is not None:
+            # pass the path to onnx model
+            checkpoint_callback(dynamic_onnx_path)
+
 
 def get_dataset(config: dict, set_name: str):
     constructor_name = f"get_{set_name}_set"
@@ -405,6 +495,15 @@ def get_data_loader(config: dict, set_name: str):
         logger=os.path.join(config["log_dir"], set_name),
     )
     return loader
+
+def get_checkpoint_callback(config: dict):
+    # try to load the checkpoint callback constructor
+    try:
+        constructor = load_module(config["checkpoint_callback"]["implementation"], "get_checkpoint_callback")
+    except ImportError:
+        return 
+    
+    return constructor, config["checkpoint_callback"]["arguments"]
 
 
 def dispose_data_loader(*args):

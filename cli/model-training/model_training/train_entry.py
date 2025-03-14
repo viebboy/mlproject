@@ -24,6 +24,7 @@ from model_training.tools import (
     get_data_loader,
     dispose_data_loader,
     get_trainer,
+    get_checkpoint_callback,
     get_model,
     prepare_directories,
     print_config,
@@ -55,7 +56,12 @@ def main(
     train_loader = get_data_loader(config, "train")
     val_loader = get_data_loader(config, "val")
     test_loader = get_data_loader(config, "test")
-
+    checkpoint_callback = get_checkpoint_callback(config)
+    if checkpoint_callback is not None:
+        checkpoint_callback = {
+            "constructor": checkpoint_callback[0],
+            "arguments": checkpoint_callback[1]
+            }
     try:
         # -------------- MODEL --------------------------------
         model = get_model(config)
@@ -77,6 +83,7 @@ def main(
             tensorboard_logger=tensorboard_logger,
             logger_prefix=logger_prefix,
             load_best=config["load_best"],
+            checkpoint_callback=checkpoint_callback,
         )
 
     except KeyboardInterrupt:
