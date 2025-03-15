@@ -246,7 +246,7 @@ class Trainer(BaseTrainer):
                 for inputs, labels in train_data["dataloader"]:
                     self.sample_input = inputs.cpu()
                     break
-            self.export_to_onnx(model, self.sample_input, self.onnx_checkpoint_file)
+            self.export_to_onnx(model, self.sample_input, self.onnx_checkpoint_file, checkpoint_callback)
         self.FABRIC.barrier()
 
         if isinstance(self.logger, Logger):
