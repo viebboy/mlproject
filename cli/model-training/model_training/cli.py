@@ -24,6 +24,7 @@ from model_training.cli_handlers import (
     write_classification_template_handler,
     write_regression_template_handler,
     train_handler,
+    search_handler,
 )
 
 
@@ -31,6 +32,7 @@ COMMAND_TO_HANDLER = {
     "generate-classification-template": write_classification_template_handler,
     "generate-regression-template": write_regression_template_handler,
     "train": train_handler,
+    "search": search_handler,
 }
 
 
@@ -47,6 +49,7 @@ def parse_args():
     add_write_classification_template_parser(subparsers)
     add_write_regression_template_parser(subparsers)
     add_train_parser(subparsers)
+    add_search_parser(subparsers)
 
     # Parse the arguments
     args = parser.parse_args()
@@ -92,6 +95,27 @@ def add_train_parser(subparsers):
         type=int,
         default=None,
         help="config index. If not provided, train all configs",
+    )
+    parser.add_argument(
+        "--device",
+        type=str,
+        required=True,
+        help="device to train on",
+    )
+    parser.add_argument(
+        "--test-mode",
+        action="store_true",
+        help="if turn on, will run in test mode",
+    )
+
+
+def add_search_parser(subparsers):
+    parser = subparsers.add_parser("search", help="search model")
+    parser.add_argument(
+        "--metaconfig-path",
+        type=str,
+        required=True,
+        help="path to metaconfig file",
     )
     parser.add_argument(
         "--device",

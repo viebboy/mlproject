@@ -493,10 +493,33 @@ def create_all_config(config_module):
     return all_configs
 
 
+def load_config_module(file: str):
+    """
+    Load a config module from either a .py file or a .dill file.
+
+    Args:
+        file: Path to the config file (.py or .dill)
+
+    Returns:
+        config_module: Object with NAME, DESC, and ALL_CONFIGS attributes
+    """
+    if file.endswith(".py"):
+        # Load Python module using importlib
+        spec = importlib.util.spec_from_file_location("config_module", file)
+        config_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(config_module)
+    elif file.endswith(".dill"):
+        # Load serialized namespace using dill
+        with open(file, "rb") as fid:
+            config_module = dill.load(fid)
+    else:
+        raise RuntimeError(f"Config file {file} must have extension .py or .dill")
+
+    return config_module
+
+
 def get_config_size(path):
-    spec = importlib.util.spec_from_file_location("config_module", path)
-    config_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(config_module)
+    config_module = load_config_module(path)
     validate_config_module(config_module, path)
     return len(create_all_config(config_module))
 
@@ -544,9 +567,7 @@ def load_config(file: str, index: str, test_mode: bool) -> tuple[dict, str, str]
     a config file contains all different experiment combinations
     index refers to the index of the experiment setting to run
     """
-    spec = importlib.util.spec_from_file_location("config_module", file)
-    config_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(config_module)
+    config_module = load_config_module(file)
     validate_config_module(config_module, file)
 
     config = get_config(config_module, index)

@@ -22,9 +22,13 @@ import argparse
 import os
 import torch
 import shutil
-import subprocess
+import optuna
 from model_training.train_entry import main as train_entry_main
-from model_training.tools import load_config, get_config_size
+from model_training.tools import (
+    load_config,
+    get_config_size,
+    load_module,
+)
 
 
 def write_classification_template_handler(args: argparse.Namespace) -> None:
@@ -112,3 +116,72 @@ def train_handler(args: argparse.Namespace) -> None:
             # check if the command failed
             if status != 0:
                 raise RuntimeError(f"Failed to run with index {index}")
+
+
+def search_handler(args: argparse.Namespace) -> None:
+    """Handler for search command using Optuna for hyperparameter optimization.
+
+    Uses Optuna to optimize hyperparameters by generating config files,
+    running training, and evaluating results.
+    """
+    # Load the metaconfig module
+    metaconfig_path = os.path.abspath(args.metaconfig_path)
+    construct_meta_config = load_module(metaconfig_path, "construct_meta_config")
+    meta_config = construct_meta_config()
+
+    # Create Optuna study with SQLite storage
+    storage = f"sqlite:///{meta_config.db_path()}"
+    study = optuna.create_study(
+        study_name="model_search",
+        storage=storage,
+        load_if_exists=True,
+        direction="maximize",  # Assuming maximize score
+    )
+
+    def objective(trial: optuna.trial.Trial) -> float:
+        """Objective function for Optuna optimization"""
+        # Generate config file for this trial
+        # Returns both config_path and output_dir
+        config_path, output_dir = meta_config.generate_config_file(trial)
+        config_path = os.path.abspath(config_path)
+
+        # Get the number of experiment indices (e.g., cross-validation folds)
+        nb_experiment = get_config_size(config_path)
+
+        # Run training for all experiment indices
+        for index in range(nb_experiment):
+            cmd = [
+                "model-training",
+                "train",
+                "--config-path",
+                config_path,
+                "--index",
+                str(index),
+                "--device",
+                args.device,
+            ]
+            if args.test_mode:
+                cmd.append("--test-mode")
+
+            status = os.system(" ".join(cmd))
+            if status != 0:
+                raise RuntimeError(
+                    f"Training failed for trial {trial.number}, " f"index {index}"
+                )
+
+        # Get score from the meta_config
+        # MetaConfig handles loading all experiment results and calculating
+        # average score if there are multiple indices
+        score = meta_config.get_score(output_dir)
+        return score
+
+    # Run optimization
+    study.optimize(
+        objective,
+        n_trials=meta_config.nb_trials,
+        n_jobs=meta_config.nb_parallel_trials,
+    )
+
+    print(f"Best trial: {study.best_trial.number}")
+    print(f"Best value: {study.best_value}")
+    print(f"Best params: {study.best_params}")
